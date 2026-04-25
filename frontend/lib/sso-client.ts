@@ -15,11 +15,18 @@ export interface AuthorizedEmail {
 }
 
 export function getAuthApiBaseUrl(): string {
-  return (
-    process.env.NEXT_PUBLIC_API_URL ||
-    process.env.NEXT_PUBLIC_API_BASE_URL ||
-    "http://localhost:8000"
-  );
+  const configuredBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_URL;
+
+  if (configuredBaseUrl) {
+    // Normalize any trailing slash to keep endpoint joining consistent.
+    return configuredBaseUrl.replace(/\/+$/, "");
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("Missing NEXT_PUBLIC_API_BASE_URL (or NEXT_PUBLIC_API_URL) in production.");
+  }
+
+  return "http://localhost:8000";
 }
 
 async function parseOrThrow(response: Response) {
