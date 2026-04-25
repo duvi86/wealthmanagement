@@ -219,7 +219,7 @@ export type WealthAccount = {
   ownerName: string;
   accountName: string;
   institution: string;
-  type: "Cash" | "Savings" | "Investment" | "Property" | "Loan" | "Cryptocurrency";
+  type: "Cash" | "Savings" | "Investment" | "Private Equity" | "Property" | "Loan" | "Cryptocurrency";
   currency: "EUR" | "USD" | "CHF";
   nativeBalance: number;
   fxToEur: number;
