@@ -298,14 +298,15 @@ export function useDeleteWealthAccount() {
 export function useImportWealthAccountsCsv() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (file: File) => {
+    mutationFn: async (file: File): Promise<WealthAccountImportSummary> => {
       const formData = new FormData();
       formData.append("file", file);
-      return apiClient.post<WealthAccountImportSummary>("/api/wealth/accounts/import", formData, {
+      const response = await apiClient.post<WealthAccountImportSummary>("/api/wealth/accounts/import", formData, {
         headers: {
           "Content-Type": "multipart/form-data",
         },
       });
+      return response.data;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["wealth", "accounts"] }),
   });
