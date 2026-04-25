@@ -20,10 +20,12 @@ ENV PYTHONPATH=/app/deps
 # Copy application source
 COPY . .
 
+RUN chmod +x render-start.sh
+
 # Non-root user for security
-RUN useradd -m appuser
+RUN useradd -m appuser && chown -R appuser /app
 USER appuser
 
 EXPOSE 8000
 
-CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["bash", "render-start.sh"]
