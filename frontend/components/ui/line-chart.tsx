@@ -103,7 +103,15 @@ export function LineChart({
           label={yLabel ? { value: yLabel, angle: -90, position: "insideLeft", fontSize: 12 } : undefined}
         />
         <Tooltip
-          labelFormatter={tooltipLabelFormatter}
+          labelFormatter={(label) => {
+            if (!tooltipLabelFormatter) {
+              return String(label ?? "");
+            }
+            if (typeof label === "string" || typeof label === "number") {
+              return tooltipLabelFormatter(label);
+            }
+            return String(label ?? "");
+          }}
           formatter={(value, name) => {
             const numericValue = Number(value);
             if (!Number.isFinite(numericValue)) {
