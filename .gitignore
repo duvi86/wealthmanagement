@@ -12,3 +12,12 @@ backend/.venv/
 
 # Build/cache
 frontend/.next/
+
+# Local environment files
+.env
+backend/.env
+frontend/.env.local
+
+# macOS
+.DS_Store
+**/.DS_Store

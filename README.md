@@ -63,6 +63,7 @@ Template file:
 | [docs/07_PHASE5_WAVES_BCD.md](docs/07_PHASE5_WAVES_BCD.md) | Component library, domain workflows, chatbot route |
 | [docs/08_PHASE6_QA_CI.md](docs/08_PHASE6_QA_CI.md) | QA gate and CI pipeline |
 | [docs/12_DEPLOYMENT_WORKFLOW.md](docs/12_DEPLOYMENT_WORKFLOW.md) | CD pipeline, Azure Web App setup, secrets, multi-env |
+| [docs/13_RENDER_FREE_DEPLOY.md](docs/13_RENDER_FREE_DEPLOY.md) | Free deployment path: Render backend + Neon + Vercel |
 
 ---
 
