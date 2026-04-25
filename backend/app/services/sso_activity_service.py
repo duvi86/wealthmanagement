@@ -99,12 +99,17 @@ class SSOActivityService:
     @staticmethod
     def set_session_cookie(response: Response, access_token: str) -> None:
         """Attach auth session cookie to outgoing response."""
+        is_secure = os.getenv("COOKIE_SECURE", "false").lower() == "true"
+        # SameSite=None is required for cross-origin POST/DELETE (e.g. Render deployments
+        # where frontend and backend are on different subdomains). SameSite=None requires
+        # Secure=True, so we fall back to Lax for plain-HTTP local development.
+        samesite = "none" if is_secure else "lax"
         response.set_cookie(
             key="access_token",
             value=access_token,
             httponly=True,
-            secure=os.getenv("COOKIE_SECURE", "false").lower() == "true",
-            samesite="lax",
+            secure=is_secure,
+            samesite=samesite,
             max_age=60 * 60 * 24,
             path="/",
         )
@@ -112,7 +117,15 @@ class SSOActivityService:
     @staticmethod
     def clear_session_cookie(response: Response) -> None:
         """Clear auth session cookie from outgoing response."""
-        response.delete_cookie(key="access_token", path="/")
+        is_secure = os.getenv("COOKIE_SECURE", "false").lower() == "true"
+        samesite = "none" if is_secure else "lax"
+        response.delete_cookie(
+            key="access_token",
+            path="/",
+            secure=is_secure,
+            samesite=samesite,
+            httponly=True,
+        )
 
 
 sso_activity_service = SSOActivityService()
