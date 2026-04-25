@@ -1,0 +1,19 @@
+@import "./design-system/colors-shared.css";
+@import "./design-system/colors-light.css";
+@import "./design-system/typography.css";
+@import "./design-system/spacing.css";
+
+@import "./styles/00_layout.css";
+@import "./styles/01_cards.css";
+@import "./styles/02_charts.css";
+@import "./styles/03_tables.css";
+@import "./styles/04_sidebar.css";
+@import "./styles/05_forms.css";
+@import "./styles/06_navigation.css";
+@import "./styles/07_analytics.css";
+@import "./styles/08_modals.css";
+@import "./styles/09_pickers.css";
+@import "./styles/10_status-badges.css";
+@import "./styles/11_buttons-actions.css";
+@import "./styles/12_utilities.css";
+@import "./styles/13_wealth.css";

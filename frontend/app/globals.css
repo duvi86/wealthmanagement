@@ -1,0 +1,15 @@
+@import "../styles/styles.css";
+
+:root {
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--color-surface-primary);
+  color: var(--color-text-default);
+}

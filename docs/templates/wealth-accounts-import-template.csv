@@ -1,0 +1,4 @@
+owner_name,account_name,institution,account_type,currency,expected_return_pct,allocation_bucket,2026-01-31,2026-02-28,2026-03-31
+Matthieu Duvinage,Broker Portfolio,Interactive Brokers,Investment,USD,7.0,Stocks,102000,104500,107300
+Sylvie Duvinage,Main Checking,BNP Paribas,Cash,EUR,1.0,Cash,14200,13890,14610
+Matthieu Duvinage,Global Bond Fund,Interactive Brokers,Investment,USD,4.0,Bonds,18400,18550,18820

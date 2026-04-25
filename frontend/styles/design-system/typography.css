@@ -1,0 +1,104 @@
+/* Typography scale and GSK font family registration */
+@font-face {
+  font-family: "GSK Precision Regular";
+  src: url("/assets/fonts/GSKPrecision-Regular.woff2") format("woff2"),
+    url("/assets/fonts/GSKPrecision-Regular.woff") format("woff");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "GSK Precision Bold";
+  src: url("/assets/fonts/GSKPrecision-Bold.woff2") format("woff2"),
+    url("/assets/fonts/GSKPrecision-Bold.woff") format("woff");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "GSK Precision Light";
+  src: url("/assets/fonts/GSKPrecision-Light.woff2") format("woff2"),
+    url("/assets/fonts/GSKPrecision-Light.woff") format("woff");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --font-regular: "GSK Precision Regular", "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-bold: "GSK Precision Bold", "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-light: "GSK Precision Light", "Segoe UI", Helvetica, Arial, sans-serif;
+
+  --type-size-h1: 36px;
+  --type-line-h1: 48px;
+  --type-size-h2: 28px;
+  --type-line-h2: 34px;
+  --type-size-h3: 22px;
+  --type-line-h3: 28px;
+  --type-size-h5: 18px;
+  --type-line-h5: 24px;
+
+  --type-size-body1: 16px;
+  --type-line-body1: 22px;
+  --type-size-body2: 14px;
+  --type-line-body2: 20px;
+  --type-size-body3: 12px;
+  --type-line-body3: 16px;
+}
+
+h1 {
+  font-family: var(--font-light);
+  font-size: var(--type-size-h1);
+  line-height: var(--type-line-h1);
+  color: var(--color-accent-primary);
+}
+
+h2 {
+  font-family: var(--font-light);
+  font-size: var(--type-size-h2);
+  line-height: var(--type-line-h2);
+  color: var(--color-text-default);
+}
+
+h3 {
+  font-family: var(--font-regular);
+  font-size: var(--type-size-h3);
+  line-height: var(--type-line-h3);
+  color: var(--color-text-default);
+}
+
+body,
+p,
+li {
+  font-family: var(--font-regular);
+  font-size: var(--type-size-body2);
+  line-height: var(--type-line-body2);
+  color: var(--color-text-default);
+}
+
+.body1 {
+  font-family: var(--font-regular);
+  font-size: var(--type-size-body1);
+  line-height: var(--type-line-body1);
+}
+
+.body2 {
+  font-family: var(--font-regular);
+  font-size: var(--type-size-body2);
+  line-height: var(--type-line-body2);
+}
+
+.body3 {
+  font-family: var(--font-regular);
+  font-size: var(--type-size-body3);
+  line-height: var(--type-line-body3);
+}
+
+.input-label {
+  font-family: var(--font-bold);
+  font-size: var(--type-size-body2);
+  line-height: var(--type-line-body2);
+  color: var(--color-text-default);
+}

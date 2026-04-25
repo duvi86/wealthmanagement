@@ -1,0 +1,80 @@
+/* 00_layout.css - page/app layout containers */
+
+.app-root {
+  min-height: 100vh;
+  background: var(--color-surface-primary);
+  display: flex;
+  flex-direction: column;
+}
+
+.page-shell {
+  min-height: auto;
+  background: transparent;
+  padding: 0;
+}
+
+.page-panel {
+  max-width: 100%;
+  margin: 0;
+  padding: var(--spacing-24);
+  background: var(--color-surface-primary);
+  border: 1px solid var(--color-stroke-primary);
+  border-radius: var(--border-radius-large);
+  box-shadow: var(--elevation-medium);
+}
+
+.page-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--spacing-12);
+  flex-wrap: wrap;
+}
+
+.app-main {
+  flex: 1;
+  width: 100%;
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: var(--spacing-24);
+  box-sizing: border-box;
+}
+
+.app-footer {
+  background-color: var(--color-surface-secondary);
+  border-top: 1px solid var(--color-stroke-primary);
+  width: 100%;
+}
+
+.app-footer-text {
+  margin: 0;
+  max-width: 1320px;
+  margin-left: auto;
+  margin-right: auto;
+  padding: var(--spacing-8) var(--spacing-24);
+  color: var(--color-text-subtle);
+  font-family: var(--font-regular);
+  font-size: 12px;
+}
+
+@media (max-width: 960px) {
+  .app-main {
+    padding: var(--spacing-16);
+  }
+
+  .app-footer-text {
+    padding: var(--spacing-8) var(--spacing-16);
+  }
+
+  .page-shell {
+    padding: var(--spacing-8);
+  }
+
+  .page-panel {
+    padding: var(--spacing-16);
+  }
+
+  .chat-message {
+    max-width: 92%;
+  }
+}

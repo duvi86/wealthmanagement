@@ -1,0 +1,43 @@
+/* Spacing, radius, and elevation tokens from Dash template */
+:root {
+  --base-unit: 8px;
+
+  --spacing-2: calc(var(--base-unit) * 0.25);
+  --spacing-4: calc(var(--base-unit) * 0.5);
+  --spacing-8: var(--base-unit);
+  --spacing-12: calc(var(--base-unit) * 1.5);
+  --spacing-16: calc(var(--base-unit) * 2);
+  --spacing-20: calc(var(--base-unit) * 2.5);
+  --spacing-24: calc(var(--base-unit) * 3);
+  --spacing-32: calc(var(--base-unit) * 4);
+  --spacing-40: calc(var(--base-unit) * 5);
+  --spacing-48: calc(var(--base-unit) * 6);
+  --spacing-64: calc(var(--base-unit) * 8);
+  --spacing-72: calc(var(--base-unit) * 9);
+  --spacing-80: calc(var(--base-unit) * 10);
+
+  --spacing-h4: calc(16px * 0.25);
+  --spacing-h8: calc(16px * 0.5);
+  --spacing-h12: calc(16px * 0.75);
+  --spacing-h16: calc(16px * 1);
+  --spacing-h24: calc(16px * 1.5);
+  --spacing-h32: calc(16px * 2);
+  --spacing-h48: calc(16px * 3);
+  --spacing-h64: calc(16px * 4);
+  --spacing-h96: calc(16px * 6);
+  --spacing-h128: calc(16px * 8);
+  --spacing-h192: calc(16px * 12);
+  --spacing-h256: calc(16px * 16);
+  --spacing-h384: calc(16px * 24);
+  --spacing-h512: calc(16px * 32);
+  --spacing-h640: calc(16px * 40);
+  --spacing-h768: calc(16px * 48);
+
+  --border-radius-small: 2px;
+  --border-radius-medium: 8px;
+  --border-radius-large: 12px;
+
+  --elevation-small: 0 1px 2px rgb(0 0 0 / 0.08);
+  --elevation-medium: 0 6px 20px rgb(0 0 0 / 0.12);
+  --elevation-large: 0 16px 36px rgb(0 0 0 / 0.16);
+}

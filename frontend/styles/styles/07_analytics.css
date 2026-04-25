@@ -1,0 +1,118 @@
+/* 07_analytics.css - KPI cards, progress, and analytics states */
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--spacing-16);
+}
+
+.kpi-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.kpi-card .card-header {
+  justify-content: center;
+}
+
+.kpi-label {
+  font-family: var(--font-bold);
+  font-size: 12px;
+  color: var(--color-text-subtle);
+  margin: 0 0 var(--spacing-8) 0;
+  text-align: center;
+}
+
+.kpi-value {
+  font-family: var(--font-light);
+  font-size: 28px;
+  line-height: 1.1;
+  margin: 0;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.kpi-detail {
+  margin-top: var(--spacing-8);
+}
+
+.kpi-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--spacing-12);
+}
+
+.progress-root {
+  display: grid;
+  gap: var(--spacing-4);
+}
+
+.progress-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.progress-label {
+  font-size: 13px;
+  color: var(--color-text-subtle);
+  font-family: var(--font-regular);
+}
+
+.progress-pct {
+  font-size: 13px;
+  font-family: var(--font-bold);
+  color: var(--color-text-default);
+}
+
+.progress-track {
+  height: 8px;
+  background: var(--color-surface-tertiary);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 400ms ease;
+}
+
+.rag-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  font-size: 13px;
+  font-family: var(--font-regular);
+}
+
+.rag-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.rag-green .rag-dot {
+  background: var(--color-surface-success-strong);
+}
+
+.rag-amber .rag-dot {
+  background: var(--color-surface-warning-strong);
+}
+
+.rag-red .rag-dot {
+  background: var(--color-surface-error-strong);
+}
+
+.rag-green .rag-label {
+  color: var(--color-text-success);
+}
+
+.rag-amber .rag-label {
+  color: var(--color-text-warning);
+}
+
+.rag-red .rag-label {
+  color: var(--color-text-error);
+}

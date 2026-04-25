@@ -1,0 +1,38 @@
+/* Shared visualization palette — aligned to Dash template source of truth */
+:root {
+  --color-viz-blue: #154ec2;
+  --color-viz-teal: #21837e;
+  --color-viz-green: #66a73d;
+  --color-viz-purple: #ca305b;
+  --color-viz-yellow: #f7c650;
+  --color-viz-violet: #7540ee;
+
+  /* Extended visualization palette for charts and temporal analysis */
+  --color-viz-cyan: #05d8e8;
+  --color-viz-indigo: #5f489f;
+  --color-viz-orange: #f36633;
+  --color-viz-coral: #f7855c;
+  --color-viz-red: #c83629;
+  --color-viz-lime: #9bcf2d;
+
+  /* Ordered chart series palette (use for multi-series charts) */
+  --color-chart-series-1: var(--color-viz-blue);
+  --color-chart-series-2: var(--color-viz-teal);
+  --color-chart-series-3: var(--color-viz-purple);
+  --color-chart-series-4: var(--color-viz-green);
+  --color-chart-series-5: var(--color-viz-violet);
+  --color-chart-series-6: var(--color-viz-yellow);
+  --color-chart-series-7: var(--color-viz-indigo);
+  --color-chart-series-8: var(--color-viz-cyan);
+  --color-chart-series-9: var(--color-viz-orange);
+  --color-chart-series-10: var(--color-viz-red);
+
+  /* Semantic chart colors (use for domain meaning, not order) */
+  --color-chart-velocity: var(--color-viz-blue);
+  --color-chart-completed: var(--color-viz-teal);
+  --color-chart-planned: var(--color-viz-purple);
+  --color-chart-budget: var(--color-viz-yellow);
+  --color-chart-defects: var(--color-viz-red);
+  --color-chart-risk: var(--color-viz-orange);
+  --color-chart-capacity: var(--color-viz-indigo);
+}

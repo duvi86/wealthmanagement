@@ -1,0 +1,72 @@
+/* Light-mode color tokens ported from Dash template */
+:root {
+  --color-surface-primary: #fff;
+  --color-surface-secondary: #f0efed;
+  --color-surface-tertiary: #e4e3e1;
+
+  --color-accent-primary: #f36633;
+  --color-accent-secondary: #f67547;
+  --color-accent-tertiary: #f7855c;
+
+  --color-surface-error-primary: #ffeceb;
+  --color-surface-error-strong: #c83629;
+
+  --color-surface-warning-primary: #fffaeb;
+  --color-surface-warning-strong: #ffc709;
+
+  --color-surface-success-primary: #feffeb;
+  --color-surface-success-strong: #448422;
+
+  --color-surface-info-primary: #edf4ff;
+  --color-surface-info-strong: #154ec2;
+
+  --color-text-default: #151515;
+  --color-text-subtle: #464646;
+  --color-text-disabled: #6a6a6a;
+
+  --color-text-error: #e5685c;
+  --color-text-error-on-primary: #151515;
+  --color-text-error-on-strong: #fff;
+
+  --color-text-warning: #4d3b03;
+  --color-text-warning-on-primary: #151515;
+  --color-text-warning-on-strong: #151515;
+
+  --color-text-success: #1d4d03;
+  --color-text-success-on-primary: #151515;
+  --color-text-success-on-strong: #f2ffeb;
+
+  --color-text-info: #154ec2;
+  --color-text-info-on-primary: #151515;
+  --color-text-info-on-strong: #fff;
+
+  --color-icon-default: #151515;
+  --color-icon-subtle: #464646;
+  --color-icon-disabled: #6a6a6a;
+
+  --color-icon-error: #e5685c;
+  --color-icon-error-on-primary: #151515;
+  --color-icon-error-on-strong: #fff;
+
+  --color-icon-warning: #4d3b03;
+  --color-icon-warning-on-primary: #151515;
+  --color-icon-warning-on-strong: #151515;
+
+  --color-icon-success: #1d4d03;
+  --color-icon-success-on-primary: #151515;
+  --color-icon-success-on-strong: #f2ffeb;
+
+  --color-icon-info: #154ec2;
+  --color-icon-info-on-primary: #151515;
+  --color-icon-info-on-strong: #fff;
+
+  --color-stroke-primary: #d8d7d5;
+  --color-stroke-strong: #6a6a6a;
+  --color-stroke-accent-primary: #f36633;
+  --color-stroke-on-accent: #fff;
+
+  --color-stroke-error: #c83629;
+  --color-stroke-warning: #ffc709;
+  --color-stroke-success: #448422;
+  --color-stroke-info: #154ec2;
+}

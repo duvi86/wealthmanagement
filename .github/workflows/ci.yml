@@ -1,0 +1,151 @@
+name: CI_react-fastapi-template
+
+on:
+  push:
+    branches:
+      - main
+      - "feature/**"
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  # ── Backend ──────────────────────────────────────────────────────────────────
+  backend-lint:
+    name: Backend – Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt ruff
+
+      - name: Ruff lint
+        run: ruff check app
+
+  backend-test:
+    name: Backend – Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt "anyio[asyncio]" pytest-anyio
+
+      - name: Run pytest
+        run: python -m pytest tests/ -v
+
+  backend-docker:
+    name: Backend – Docker build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: false
+          tags: twinops-backend:ci
+
+  # ── Frontend ─────────────────────────────────────────────────────────────────
+  frontend-lint:
+    name: Frontend – Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --frozen-lockfile
+
+      - name: ESLint
+        run: npm run lint
+
+  frontend-typecheck:
+    name: Frontend – Type check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --frozen-lockfile
+
+      - name: TypeScript check
+        run: npx tsc --noEmit
+
+  frontend-build:
+    name: Frontend – Next.js build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --frozen-lockfile
+
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+
+  frontend-docker:
+    name: Frontend – Docker build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: false
+          tags: twinops-frontend:ci
+          build-args: |
+            NEXT_PUBLIC_API_BASE_URL=http://localhost:8000

@@ -1,0 +1,110 @@
+name: CD_react-fastapi-template
+
+on:
+  workflow_run:
+    workflows: ["CI_react-fastapi-template"]
+    types:
+      - completed
+    branches:
+      - main
+      - "feature/**"
+
+  workflow_dispatch:
+    inputs:
+      env:
+        description: "Target environment"
+        required: true
+        default: dev
+        type: choice
+        options:
+          - dev
+          - uat
+          - prod
+      deploy_frontend:
+        description: "Deploy frontend"
+        required: false
+        default: true
+        type: boolean
+      deploy_backend:
+        description: "Deploy backend"
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  # ── Guard: only run CD when CI passed ────────────────────────────────────────
+  check-ci:
+    name: Check CI status
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    steps:
+      - run: echo "CI passed or manual dispatch — proceeding."
+
+  # ── Deploy dev ────────────────────────────────────────────────────────────────
+  deploy_dev:
+    name: Deploy → dev
+    needs: check-ci
+    if: >
+      github.event_name == 'workflow_dispatch' && inputs.env == 'dev' ||
+      github.event_name == 'workflow_run'
+    environment: dev
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to dev
+        uses: ./.github/actions/deploy-to-azure-webapp
+        with:
+          deploy_frontend: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy_frontend || 'true' }}
+          deploy_backend: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy_backend || 'true' }}
+          frontend_webapp_name: ${{ vars.FRONTEND_AZURE_WEBAPP_NAME }}
+          backend_webapp_name: ${{ vars.BACKEND_AZURE_WEBAPP_NAME }}
+          frontend_publish_profile: ${{ secrets.FRONTEND_AZURE_WEBAPP_PUBLISH_PROFILE }}
+          backend_publish_profile: ${{ secrets.BACKEND_AZURE_WEBAPP_PUBLISH_PROFILE }}
+          next_public_api_base_url: ${{ vars.NEXT_PUBLIC_API_BASE_URL }}
+
+  # ── Deploy uat (main branch only, after dev) ──────────────────────────────────
+  deploy_uat:
+    name: Deploy → uat
+    needs: deploy_dev
+    if: >
+      (github.event_name == 'workflow_dispatch' && inputs.env == 'uat') ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.head_branch == 'main')
+    environment: uat
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to uat
+        uses: ./.github/actions/deploy-to-azure-webapp
+        with:
+          deploy_frontend: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy_frontend || 'true' }}
+          deploy_backend: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy_backend || 'true' }}
+          frontend_webapp_name: ${{ vars.FRONTEND_AZURE_WEBAPP_NAME }}
+          backend_webapp_name: ${{ vars.BACKEND_AZURE_WEBAPP_NAME }}
+          frontend_publish_profile: ${{ secrets.FRONTEND_AZURE_WEBAPP_PUBLISH_PROFILE }}
+          backend_publish_profile: ${{ secrets.BACKEND_AZURE_WEBAPP_PUBLISH_PROFILE }}
+          next_public_api_base_url: ${{ vars.NEXT_PUBLIC_API_BASE_URL }}
+
+  # ── Deploy prod (manual only) ─────────────────────────────────────────────────
+  deploy_prod:
+    name: Deploy → prod
+    needs: deploy_uat
+    if: github.event_name == 'workflow_dispatch' && inputs.env == 'prod'
+    environment: prod
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to prod
+        uses: ./.github/actions/deploy-to-azure-webapp
+        with:
+          deploy_frontend: ${{ inputs.deploy_frontend }}
+          deploy_backend: ${{ inputs.deploy_backend }}
+          frontend_webapp_name: ${{ vars.FRONTEND_AZURE_WEBAPP_NAME }}
+          backend_webapp_name: ${{ vars.BACKEND_AZURE_WEBAPP_NAME }}
+          frontend_publish_profile: ${{ secrets.FRONTEND_AZURE_WEBAPP_PUBLISH_PROFILE }}
+          backend_publish_profile: ${{ secrets.BACKEND_AZURE_WEBAPP_PUBLISH_PROFILE }}
+          next_public_api_base_url: ${{ vars.NEXT_PUBLIC_API_BASE_URL }}

@@ -1,0 +1,200 @@
+/* 06_navigation.css - top bar, nav tabs, and tab controls */
+
+.skip-link {
+  position: absolute;
+  top: -60px;
+  left: var(--spacing-12);
+  background: var(--color-accent-primary);
+  color: #fff;
+  padding: var(--spacing-8) var(--spacing-12);
+  border-radius: var(--border-radius-medium);
+  text-decoration: none;
+  z-index: 999;
+}
+
+.skip-link:focus {
+  top: var(--spacing-12);
+}
+
+.top-bar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-16);
+  padding: var(--spacing-8) var(--spacing-24);
+  background-color: var(--color-surface-secondary);
+  border-bottom: 1px solid var(--color-stroke-primary);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.08);
+}
+
+.top-bar-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.top-bar-logo {
+  display: block;
+  height: 38px;
+  width: auto;
+}
+
+.top-bar-divider {
+  display: block;
+  width: 1px;
+  height: 28px;
+  background: var(--color-stroke-primary);
+  flex-shrink: 0;
+}
+
+.top-bar-app-name {
+  font-family: var(--font-regular);
+  font-size: 13px;
+  color: var(--color-text-subtle);
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+
+.top-bar-nav {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  margin-left: auto;
+}
+
+.top-bar-link {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--spacing-8) var(--spacing-16);
+  text-decoration: none;
+  color: var(--color-text-default);
+  font-family: var(--font-regular);
+  font-size: 14px;
+  border-bottom: 3px solid transparent;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+  white-space: nowrap;
+}
+
+.top-bar-link:hover {
+  background-color: var(--color-surface-tertiary);
+  color: var(--color-text-default);
+}
+
+.top-bar-link.active {
+  border-bottom-color: var(--color-accent-primary);
+  color: var(--color-accent-primary);
+  font-family: var(--font-bold);
+}
+
+.menu-toggle {
+  display: none;
+  border: 1px solid var(--color-stroke-primary);
+  border-radius: var(--border-radius-medium);
+  background: var(--color-surface-primary);
+  padding: var(--spacing-8) var(--spacing-12);
+  color: var(--color-text-default);
+  font-family: var(--font-bold);
+  cursor: pointer;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.hamburger-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.mobile-nav {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface-secondary);
+  border-bottom: 1px solid var(--color-stroke-primary);
+  box-shadow: 0 4px 8px rgb(0 0 0 / 0.08);
+  z-index: 99;
+}
+
+.mobile-nav-link {
+  display: block;
+  padding: var(--spacing-12) var(--spacing-24);
+  text-decoration: none;
+  color: var(--color-text-default);
+  font-family: var(--font-regular);
+  font-size: 15px;
+  border-left: 4px solid transparent;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.mobile-nav-link:hover {
+  background: var(--color-surface-tertiary);
+}
+
+.mobile-nav-link.active {
+  border-left-color: var(--color-accent-primary);
+  color: var(--color-accent-primary);
+  font-family: var(--font-bold);
+  background: rgb(243 102 51 / 0.06);
+}
+
+.tabs-root {
+  display: grid;
+  gap: 0;
+}
+
+.tabs-bar {
+  display: flex;
+  border-bottom: 2px solid var(--color-stroke-primary);
+  gap: 0;
+  overflow-x: auto;
+}
+
+.tab-btn {
+  border: none;
+  background: none;
+  padding: var(--spacing-8) var(--spacing-16);
+  font-family: var(--font-regular);
+  font-size: 14px;
+  color: var(--color-text-subtle);
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  white-space: nowrap;
+  transition: color 120ms ease, border-color 120ms ease, background-color 120ms ease;
+}
+
+.tab-btn:hover {
+  color: var(--color-text-default);
+  background: var(--color-surface-secondary);
+}
+
+.tab-btn.active {
+  color: var(--color-accent-primary);
+  border-bottom-color: var(--color-accent-primary);
+  font-family: var(--font-bold);
+}
+
+.tab-btn:focus-visible {
+  outline: 2px solid rgb(243 102 51 / 0.35);
+  outline-offset: -1px;
+}
+
+.tabs-panel {
+  padding: var(--spacing-20) 0;
+}
+
+@media (max-width: 960px) {
+  .top-bar {
+    padding: var(--spacing-8) var(--spacing-16);
+  }
+
+  .top-bar-nav {
+    display: none;
+  }
+
+  .menu-toggle {
+    display: inline-flex;
+  }
+}

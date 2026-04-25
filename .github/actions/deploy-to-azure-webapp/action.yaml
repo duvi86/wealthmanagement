@@ -1,0 +1,78 @@
+name: Deploy to Azure Web App
+
+description: >
+  Composite action that deploys the frontend and/or backend to Azure Web Apps.
+  Steps are skipped when the corresponding webapp name or publish profile is absent.
+
+inputs:
+  deploy_frontend:
+    description: "Deploy the Next.js frontend"
+    required: false
+    default: "true"
+  deploy_backend:
+    description: "Deploy the FastAPI backend"
+    required: false
+    default: "true"
+  frontend_webapp_name:
+    description: "Azure Web App name for the frontend"
+    required: false
+    default: ""
+  backend_webapp_name:
+    description: "Azure Web App name for the backend"
+    required: false
+    default: ""
+  frontend_publish_profile:
+    description: "Azure publish profile XML for the frontend web app"
+    required: false
+    default: ""
+  backend_publish_profile:
+    description: "Azure publish profile XML for the backend web app"
+    required: false
+    default: ""
+  next_public_api_base_url:
+    description: "NEXT_PUBLIC_API_BASE_URL injected at frontend build time"
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    # ── Backend ─────────────────────────────────────────────────────────────────
+    - name: Deploy Backend
+      if: inputs.deploy_backend == 'true' && inputs.backend_webapp_name != '' && inputs.backend_publish_profile != ''
+      uses: azure/webapps-deploy@v3
+      with:
+        app-name: ${{ inputs.backend_webapp_name }}
+        publish-profile: ${{ inputs.backend_publish_profile }}
+        package: ./backend
+
+    # ── Frontend ─────────────────────────────────────────────────────────────────
+    - name: Set up Node
+      if: inputs.deploy_frontend == 'true' && inputs.frontend_webapp_name != '' && inputs.frontend_publish_profile != ''
+      uses: actions/setup-node@v4
+      with:
+        node-version: "20"
+        cache: npm
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Install frontend dependencies
+      if: inputs.deploy_frontend == 'true' && inputs.frontend_webapp_name != '' && inputs.frontend_publish_profile != ''
+      shell: bash
+      working-directory: frontend
+      run: npm ci --frozen-lockfile
+
+    - name: Build frontend
+      if: inputs.deploy_frontend == 'true' && inputs.frontend_webapp_name != '' && inputs.frontend_publish_profile != ''
+      shell: bash
+      working-directory: frontend
+      run: npm run build
+      env:
+        NEXT_PUBLIC_API_BASE_URL: ${{ inputs.next_public_api_base_url }}
+
+    - name: Deploy Frontend
+      if: inputs.deploy_frontend == 'true' && inputs.frontend_webapp_name != '' && inputs.frontend_publish_profile != ''
+      uses: azure/webapps-deploy@v3
+      with:
+        app-name: ${{ inputs.frontend_webapp_name }}
+        publish-profile: ${{ inputs.frontend_publish_profile }}
+        package: ./frontend
