@@ -101,6 +101,46 @@ def _derive_owner_id(owner_name: str, owner_name_to_id: dict[str, str], used_own
     return candidate
 
 
+_MORTGAGE_COLUMNS = {
+    "mortgage_principal",
+    "mortgage_annual_rate_pct",
+    "mortgage_term_months",
+    "mortgage_start_date",
+    "mortgage_type",
+}
+
+
+def _compute_amortized_balance(principal: float, annual_rate_pct: float, term_months: int, start_date: str, at_date: str) -> float:
+    """Return the remaining loan balance at `at_date` (YYYY-MM-DD) using a fixed-rate amortization schedule.
+    Returns `principal` if `at_date` is before the start month.
+    Returns 0.0 if the loan would be fully paid off.
+    """
+    if principal <= 0 or annual_rate_pct <= 0 or term_months <= 0:
+        return 0.0
+
+    # Parse start month
+    start_parts = start_date.split("-")
+    start_year = int(start_parts[0])
+    start_month = int(start_parts[1]) if len(start_parts) > 1 else 1
+
+    # Parse target month from YYYY-MM-DD
+    at_parts = at_date.split("-")
+    at_year = int(at_parts[0])
+    at_month = int(at_parts[1]) if len(at_parts) > 1 else 1
+
+    months_elapsed = (at_year - start_year) * 12 + (at_month - start_month)
+    if months_elapsed <= 0:
+        return principal
+
+    n = min(months_elapsed, term_months)
+    r = annual_rate_pct / 100 / 12
+    # Remaining balance formula: B = P * [(1+r)^N - (1+r)^n] / [(1+r)^N - 1]
+    total = pow(1 + r, term_months)
+    paid = pow(1 + r, n)
+    balance = principal * (total - paid) / (total - 1)
+    return max(0.0, balance)
+
+
 def _fetch_live_fx_to_eur(currency: str, date: str) -> float:
     if currency == "EUR":
         return 1.0
@@ -311,71 +351,104 @@ def import_accounts_from_csv(db: Session, content: bytes) -> AccountImportSummar
         owner_id = _derive_owner_id(owner_name, owner_name_to_id, used_owner_ids)
         co_owner_id = _derive_owner_id(co_owner_name_raw, owner_name_to_id, used_owner_ids) if co_owner_name_raw else None
 
-        for orig_header, date_column in date_header_map.items():
-            balance_raw = (row.get(orig_header) or "").strip()
-            if not balance_raw:
-                continue
+        # ── Mortgage auto-amortization ──────────────────────────────────────
+        mortgage_principal_raw = (row.get("mortgage_principal") or "").strip()
+        is_mortgage_loan = account_type == "Loan" and bool(mortgage_principal_raw)
+        mortgage_data: dict[str, Any] | None = None
+
+        if is_mortgage_loan:
+            try:
+                mtg_principal = float(mortgage_principal_raw)
+            except ValueError:
+                errors.append(AccountImportError(row=row_index, column="mortgage_principal", message="Must be numeric."))
+                is_mortgage_loan = False
+                mtg_principal = 0.0
+
+            mtg_rate_raw = (row.get("mortgage_annual_rate_pct") or "").strip()
+            mtg_term_raw = (row.get("mortgage_term_months") or "").strip()
+            mtg_start = (row.get("mortgage_start_date") or "").strip()
+            mtg_type = (row.get("mortgage_type") or "Fixed").strip() or "Fixed"
 
             try:
-                native_balance = float(balance_raw)
+                mtg_rate = float(mtg_rate_raw) if mtg_rate_raw else 0.0
             except ValueError:
-                errors.append(
-                    AccountImportError(
-                        row=row_index,
-                        column=date_column,
-                        message="Date column balance must be numeric.",
-                    )
-                )
-                continue
+                errors.append(AccountImportError(row=row_index, column="mortgage_annual_rate_pct", message="Must be numeric."))
+                mtg_rate = 0.0
 
-            # Determine FX rate for this specific date
-            fx_to_eur = 1.0
-            if fx_to_eur_raw:
-                try:
-                    fx_to_eur = float(fx_to_eur_raw)
-                except ValueError:
-                    errors.append(
-                        AccountImportError(
-                            row=row_index,
-                            column="fx_to_eur",
-                            message="Must be a numeric value when provided.",
-                        )
-                    )
+            try:
+                mtg_term = int(mtg_term_raw) if mtg_term_raw else 0
+            except ValueError:
+                errors.append(AccountImportError(row=row_index, column="mortgage_term_months", message="Must be an integer."))
+                mtg_term = 0
+
+            if not mtg_start:
+                errors.append(AccountImportError(row=row_index, column="mortgage_start_date", message="Required for mortgage loans (YYYY-MM)."))
+                is_mortgage_loan = False
+            elif mtg_rate <= 0 or mtg_term <= 0:
+                is_mortgage_loan = False
+            else:
+                mortgage_data = {
+                    "principal": mtg_principal,
+                    "annual_rate_pct": mtg_rate,
+                    "term_months": mtg_term,
+                    "start_date": mtg_start,
+                    "mortgage_type": mtg_type,
+                }
+
+        if is_mortgage_loan and mortgage_data:
+            # Generate one account row per CSV date column on/after mortgage start
+            latest_account_id: str | None = None
+            for orig_header, date_column in sorted(date_header_map.items(), key=lambda kv: kv[1]):
+                # Skip dates before mortgage start
+                date_ym = date_column[:7]  # YYYY-MM
+                if date_ym < mortgage_data["start_date"]:
                     continue
-            elif currency in allowed_currencies:
-                cache_key = f"{currency}:{date_column}"
-                if cache_key not in fx_cache:
+
+                dedupe_key = (
+                    _normalize(owner_name),
+                    _normalize(account_name),
+                    _normalize(institution),
+                    account_type,
+                    currency,
+                    date_column,
+                )
+                if dedupe_key in existing_keys:
+                    skipped_count += 1
+                    continue
+
+                # Compute amortized balance (stored as negative — liability)
+                balance = _compute_amortized_balance(
+                    mortgage_data["principal"],
+                    mortgage_data["annual_rate_pct"],
+                    mortgage_data["term_months"],
+                    mortgage_data["start_date"],
+                    date_column,
+                )
+                native_balance = -round(balance, 2)
+
+                # FX rate
+                fx_to_eur = 1.0
+                if fx_to_eur_raw:
                     try:
-                        fx_to_eur = _fetch_live_fx_to_eur(currency, date_column)
-                        fx_cache[cache_key] = fx_to_eur
-                    except ValueError as exc:
-                        errors.append(
-                            AccountImportError(
-                                row=row_index,
-                                column="fx_to_eur",
-                                message=str(exc),
-                            )
-                        )
-                        continue
-                else:
-                    fx_to_eur = fx_cache[cache_key]
+                        fx_to_eur = float(fx_to_eur_raw)
+                    except ValueError:
+                        fx_to_eur = 1.0
+                elif currency in allowed_currencies:
+                    cache_key = f"{currency}:{date_column}"
+                    if cache_key not in fx_cache:
+                        try:
+                            fx_to_eur = _fetch_live_fx_to_eur(currency, date_column)
+                            fx_cache[cache_key] = fx_to_eur
+                        except ValueError:
+                            fx_to_eur = _FALLBACK_FX_RATES.get(currency, 1.0)
+                    else:
+                        fx_to_eur = fx_cache[cache_key]
 
-            dedupe_key = (
-                _normalize(owner_name),
-                _normalize(account_name),
-                _normalize(institution),
-                account_type,
-                currency,
-                date_column,
-            )
-            if dedupe_key in existing_keys:
-                skipped_count += 1
-                continue
-
-            existing_keys.add(dedupe_key)
-            rows_to_create.append(
-                {
-                    "id": _new_id("a-"),
+                account_id = _new_id("a-")
+                latest_account_id = account_id
+                existing_keys.add(dedupe_key)
+                rows_to_create.append({
+                    "id": account_id,
                     "owner_id": owner_id,
                     "owner_name": owner_name,
                     "co_owner_name": co_owner_name_raw,
@@ -389,8 +462,99 @@ def import_accounts_from_csv(db: Session, content: bytes) -> AccountImportSummar
                     "expected_return_pct": expected_return_pct,
                     "allocation_bucket": allocation_bucket_raw or None,
                     "updated_at": date_column,
-                }
-            )
+                    "_mortgage": mortgage_data if date_column == sorted(date_header_map.values())[-1] else None,
+                    "_latest": False,
+                })
+
+            # Mark the last row as the one receiving the WealthMortgage record
+            if latest_account_id and rows_to_create:
+                for r in reversed(rows_to_create):
+                    if r.get("id") == latest_account_id:
+                        r["_latest"] = True
+                        break
+
+        else:
+            # ── Regular (non-mortgage) account rows ─────────────────────────
+            for orig_header, date_column in date_header_map.items():
+                balance_raw = (row.get(orig_header) or "").strip()
+                if not balance_raw:
+                    continue
+
+                try:
+                    native_balance = float(balance_raw)
+                except ValueError:
+                    errors.append(
+                        AccountImportError(
+                            row=row_index,
+                            column=date_column,
+                            message="Date column balance must be numeric.",
+                        )
+                    )
+                    continue
+
+                # Determine FX rate for this specific date
+                fx_to_eur = 1.0
+                if fx_to_eur_raw:
+                    try:
+                        fx_to_eur = float(fx_to_eur_raw)
+                    except ValueError:
+                        errors.append(
+                            AccountImportError(
+                                row=row_index,
+                                column="fx_to_eur",
+                                message="Must be a numeric value when provided.",
+                            )
+                        )
+                        continue
+                elif currency in allowed_currencies:
+                    cache_key = f"{currency}:{date_column}"
+                    if cache_key not in fx_cache:
+                        try:
+                            fx_to_eur = _fetch_live_fx_to_eur(currency, date_column)
+                            fx_cache[cache_key] = fx_to_eur
+                        except ValueError as exc:
+                            errors.append(
+                                AccountImportError(
+                                    row=row_index,
+                                    column="fx_to_eur",
+                                    message=str(exc),
+                                )
+                            )
+                            continue
+                    else:
+                        fx_to_eur = fx_cache[cache_key]
+
+                dedupe_key = (
+                    _normalize(owner_name),
+                    _normalize(account_name),
+                    _normalize(institution),
+                    account_type,
+                    currency,
+                    date_column,
+                )
+                if dedupe_key in existing_keys:
+                    skipped_count += 1
+                    continue
+
+                existing_keys.add(dedupe_key)
+                rows_to_create.append(
+                    {
+                        "id": _new_id("a-"),
+                        "owner_id": owner_id,
+                        "owner_name": owner_name,
+                        "co_owner_name": co_owner_name_raw,
+                        "co_owner_id": co_owner_id,
+                        "account_name": account_name,
+                        "institution": institution,
+                        "type": account_type,
+                        "currency": currency,
+                        "native_balance": native_balance,
+                        "fx_to_eur": fx_to_eur,
+                        "expected_return_pct": expected_return_pct,
+                        "allocation_bucket": allocation_bucket_raw or None,
+                        "updated_at": date_column,
+                    }
+                )
 
     if errors:
         return AccountImportSummary(
@@ -402,7 +566,20 @@ def import_accounts_from_csv(db: Session, content: bytes) -> AccountImportSummar
 
     try:
         for row in rows_to_create:
-            db.add(WealthAccount(**row))
+            mortgage_payload = row.pop("_mortgage", None)
+            is_latest = row.pop("_latest", False)
+            account = WealthAccount(**row)
+            db.add(account)
+            db.flush()
+            if is_latest and mortgage_payload:
+                db.add(WealthMortgage(
+                    account_id=account.id,
+                    principal=mortgage_payload["principal"],
+                    annual_rate_pct=mortgage_payload["annual_rate_pct"],
+                    term_months=mortgage_payload["term_months"],
+                    start_date=mortgage_payload["start_date"],
+                    mortgage_type=mortgage_payload["mortgage_type"],
+                ))
         db.commit()
     except Exception:
         db.rollback()
@@ -575,7 +752,20 @@ def create_snapshot(db: Session, data: SnapshotCreate) -> WealthSnapshot:
     assets_eur = 0.0
     liabilities_eur = 0.0
     for account in accounts:
-        value_eur = account.native_balance * account.fx_to_eur
+        # For Loan accounts with a mortgage, compute the amortized balance at the snapshot date
+        if account.type == "Loan" and account.mortgage:
+            mtg = account.mortgage
+            balance = _compute_amortized_balance(
+                mtg.principal,
+                mtg.annual_rate_pct,
+                mtg.term_months,
+                mtg.start_date,
+                data.date,
+            )
+            value_eur = -balance * account.fx_to_eur
+        else:
+            value_eur = account.native_balance * account.fx_to_eur
+
         if account.type == "Loan" or value_eur < 0:
             liabilities_eur += abs(value_eur)
         else:

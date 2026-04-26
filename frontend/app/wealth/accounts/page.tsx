@@ -41,12 +41,18 @@ import { Skeleton } from "@/components/ui/loading";
 
 const WEALTH_IMPORT_STATIC_COLUMNS = [
   "owner_name",
+  "co_owner_name",
   "account_name",
   "institution",
   "account_type",
   "currency",
   "expected_return_pct",
   "allocation_bucket",
+  "mortgage_principal",
+  "mortgage_annual_rate_pct",
+  "mortgage_term_months",
+  "mortgage_start_date",
+  "mortgage_type",
 ] as const;
 
 const WEALTH_IMPORT_TEMPLATE = [
@@ -58,27 +64,43 @@ const WEALTH_IMPORT_TEMPLATE = [
   ].join(","),
   [
     "Matthieu Duvinage",
+    "",
     "Broker Portfolio",
     "Interactive Brokers",
     "Investment",
     "USD",
     "7.0",
     "Stocks",
+    "", "", "", "", "",
     "102000",
     "104500",
     "107300",
   ].join(","),
   [
     "Sylvie Duvinage",
+    "",
     "Main Checking",
     "BNP Paribas",
     "Cash",
     "EUR",
     "1.0",
     "Cash",
+    "", "", "", "", "",
     "14200",
     "13890",
     "14610",
+  ].join(","),
+  [
+    "Matthieu Duvinage",
+    "Sylvie Duvinage",
+    "Home Loan",
+    "BNP Paribas",
+    "Loan",
+    "EUR",
+    "0",
+    "",
+    "315000", "1.5", "300", "2016-01", "Fixed",
+    "", "", "",
   ].join(","),
 ].join("\n");
 
@@ -90,6 +112,30 @@ function toCsvCell(value: string | number | null | undefined): string {
   return `"${text.replace(/"/g, '""')}"`;
 }
 
+/**
+ * Compute the remaining mortgage balance (positive) at `atDate` (YYYY-MM-DD).
+ * Uses the same formula as the backend: B = P * [(1+r)^N - (1+r)^n] / [(1+r)^N - 1]
+ */
+function computeAmortizedBalance(
+  principal: number,
+  annualRatePct: number,
+  termMonths: number,
+  startDate: string,   // YYYY-MM
+  atDate: string,      // YYYY-MM-DD
+): number {
+  const r = annualRatePct / 100 / 12;
+  const N = termMonths;
+  const [sy, sm] = startDate.split("-").map(Number);
+  const [ay, am] = atDate.substring(0, 7).split("-").map(Number);
+  const n = (ay - sy) * 12 + (am - sm);
+  if (n <= 0) return principal;
+  if (n >= N) return 0;
+  if (r === 0) return principal * (1 - n / N);
+  const powN = Math.pow(1 + r, N);
+  const powN2 = Math.pow(1 + r, n);
+  return principal * (powN - powN2) / (powN - 1);
+}
+
 function buildAccountsRegistryCsv(accounts: Account[]): string {
   if (accounts.length === 0) {
     return WEALTH_IMPORT_TEMPLATE;
@@ -99,12 +145,15 @@ function buildAccountsRegistryCsv(accounts: Account[]): string {
     string,
     {
       ownerName: string;
+      coOwnerName: string;
       accountName: string;
       institution: string;
       accountType: string;
       currency: string;
       expectedReturnPct: number;
       allocationBucket: string;
+      isMortgageLoan: boolean;
+      mortgage: WealthAccount["mortgage"];
       balancesByDate: Map<string, string>;
     }
   >();
@@ -128,31 +177,60 @@ function buildAccountsRegistryCsv(accounts: Account[]): string {
     if (!groupedRows.has(rowKey)) {
       groupedRows.set(rowKey, {
         ownerName: account.ownerName,
+        coOwnerName: account.coOwnerName ?? "",
         accountName: account.accountName,
         institution: account.institution,
         accountType: account.type,
         currency: account.currency,
         expectedReturnPct: account.expectedReturnPct,
         allocationBucket,
+        isMortgageLoan: account.type === "Loan" && Boolean(account.mortgage),
+        mortgage: account.mortgage ?? null,
         balancesByDate: new Map<string, string>(),
       });
     }
 
-    groupedRows.get(rowKey)?.balancesByDate.set(account.updatedAt, String(account.nativeBalance));
+    const grp = groupedRows.get(rowKey)!;
+    // If a later row in the same group carries the mortgage record, capture it
+    if (account.mortgage && !grp.mortgage) {
+      grp.mortgage = account.mortgage;
+      grp.isMortgageLoan = true;
+    }
+    grp.balancesByDate.set(account.updatedAt, String(account.nativeBalance));
   });
 
   const rows = [
     [...WEALTH_IMPORT_STATIC_COLUMNS, ...dateColumns],
-    ...Array.from(groupedRows.values()).map((row) => [
-      row.ownerName,
-      row.accountName,
-      row.institution,
-      row.accountType,
-      row.currency,
-      row.expectedReturnPct,
-      row.allocationBucket,
-      ...dateColumns.map((dateColumn) => row.balancesByDate.get(dateColumn) ?? ""),
-    ]),
+    ...Array.from(groupedRows.values()).map((row) => {
+      const staticCells = [
+        row.ownerName,
+        row.coOwnerName,
+        row.accountName,
+        row.institution,
+        row.accountType,
+        row.currency,
+        row.expectedReturnPct,
+        row.allocationBucket,
+        row.isMortgageLoan && row.mortgage ? row.mortgage.principal : "",
+        row.isMortgageLoan && row.mortgage ? row.mortgage.annualRatePct : "",
+        row.isMortgageLoan && row.mortgage ? row.mortgage.termMonths : "",
+        row.isMortgageLoan && row.mortgage ? row.mortgage.startDate : "",
+        row.isMortgageLoan && row.mortgage ? row.mortgage.mortgageType : "",
+      ];
+      const dateCells = row.isMortgageLoan && row.mortgage
+        ? dateColumns.map((dateColumn) => {
+            const remaining = computeAmortizedBalance(
+              row.mortgage!.principal,
+              row.mortgage!.annualRatePct,
+              row.mortgage!.termMonths,
+              row.mortgage!.startDate,
+              dateColumn,
+            );
+            return String(-Math.round(remaining * 100) / 100);
+          })
+        : dateColumns.map((dateColumn) => row.balancesByDate.get(dateColumn) ?? "");
+      return [...staticCells, ...dateCells];
+    }),
   ];
 
   return rows.map((row) => row.map((cell) => toCsvCell(cell)).join(",")).join("\n");
