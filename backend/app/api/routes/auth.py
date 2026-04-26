@@ -17,6 +17,10 @@ from ...schemas.auth import (
     UserResponse,
 )
 from ...schemas.auth_dependencies import get_current_user
+from ...schemas.auth_dependencies import (
+    get_current_authorized_user,
+    get_current_user_with_authorization_bootstrap,
+)
 from ...services.auth_service import auth_service
 from ...services.sso_activity_service import sso_activity_service
 
@@ -113,7 +117,7 @@ def get_current_user_info(current_user_id: str = Depends(get_current_user), db: 
 
 
 @router.get("/auth/authorized-emails", response_model=list[AuthorizedEmailResponse])
-def list_authorized_emails(current_user_id: str = Depends(get_current_user), db: Session = Depends(get_db)) -> list[AuthorizedEmailResponse]:
+def list_authorized_emails(current_user_id: str = Depends(get_current_authorized_user), db: Session = Depends(get_db)) -> list[AuthorizedEmailResponse]:
     """List all authorized emails."""
     emails = db.query(AuthorizedEmail).order_by(AuthorizedEmail.approved_at.desc()).all()
 
@@ -132,7 +136,7 @@ def list_authorized_emails(current_user_id: str = Depends(get_current_user), db:
 @router.post("/auth/authorized-emails", response_model=AuthorizedEmailResponse)
 def add_authorized_email(
     request: AuthorizedEmailCreate,
-    current_user_id: str = Depends(get_current_user),
+    current_user_id: str = Depends(get_current_user_with_authorization_bootstrap),
     db: Session = Depends(get_db),
 ) -> AuthorizedEmailResponse:
     """Add an email to the allowlist."""
@@ -167,7 +171,7 @@ def add_authorized_email(
 @router.delete("/auth/authorized-emails/{email}")
 def remove_authorized_email(
     email: str,
-    current_user_id: str = Depends(get_current_user),
+    current_user_id: str = Depends(get_current_authorized_user),
     db: Session = Depends(get_db),
 ) -> dict:
     """Remove an email from the allowlist."""

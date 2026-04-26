@@ -94,6 +94,7 @@ class WealthAccount(Base):
     owner_name = Column(String, nullable=False)
     co_owner_name = Column(String, nullable=True)
     co_owner_id = Column(String, nullable=True)
+    ownership_split = Column(JSON, nullable=True, default=list)
     account_name = Column(String, nullable=False)
     institution = Column(String, nullable=False)
     type = Column(String, nullable=False)  # Cash | Savings | Investment | Property | Loan | Cryptocurrency
@@ -106,6 +107,23 @@ class WealthAccount(Base):
 
     portfolio_lines = relationship("WealthPortfolioLine", back_populates="account", cascade="all, delete-orphan")
     mortgage = relationship("WealthMortgage", back_populates="account", uselist=False, cascade="all, delete-orphan")
+
+
+class WealthPersonProfile(Base):
+    """Person profile used for account ownership and scenario assumptions."""
+
+    __tablename__ = "wealth_person_profiles"
+
+    id = Column(String, primary_key=True)
+    owner_user_id = Column(String, ForeignKey("users.id"), nullable=True)
+    email = Column(String, nullable=True)
+    name = Column(String, nullable=False)
+    birth_date = Column(String, nullable=True)
+    current_age = Column(Float, nullable=True)
+    expected_lifetime = Column(Integer, nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(String, nullable=False)
+    updated_at = Column(String, nullable=False)
 
 
 class WealthPortfolioLine(Base):

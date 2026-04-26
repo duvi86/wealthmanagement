@@ -18,15 +18,17 @@ import { StatusPill } from "@/components/ui/status-pill";
 import { Tabs } from "@/components/ui/tabs";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import { Toast, ToastContainer } from "@/components/ui/toast";
-import { formatMoney, type FireScenario, wealthProfile } from "@/lib/wealth-mock-data";
+import { formatMoney, type FireScenario } from "@/lib/wealth-mock-data";
 import {
   useWealthFireScenarios,
   useCreateWealthFireScenario,
   useUpdateWealthFireScenario,
   useDeleteWealthFireScenario,
   useWealthAccounts,
+  useWealthPersonProfiles,
   type WealthFireScenario,
   type WealthAccount,
+  type WealthPersonProfile,
 } from "@/hooks/use-api";
 import { Skeleton } from "@/components/ui/loading";
 
@@ -53,6 +55,13 @@ function EditIcon() {
 }
 
 type ProfileScope = "p-1" | "p-2" | "both";
+
+type ProfileMember = {
+  id: string;
+  name: string;
+  currentAge: number;
+  expectedLifetime: number;
+};
 
 type WizardState = {
   name: string;
@@ -149,14 +158,21 @@ function formatMillions(value: number): string {
   return `${millions.toFixed(1)}M`;
 }
 
-function getProfileAssumptions(scope: ProfileScope) {
+function getProfileAssumptions(scope: ProfileScope, members: ProfileMember[]) {
+  const fallbackMembers: ProfileMember[] = members.length
+    ? members
+    : [
+        { id: "p-1", name: "Person 1", currentAge: 38, expectedLifetime: 92 },
+        { id: "p-2", name: "Person 2", currentAge: 41, expectedLifetime: 90 },
+      ];
+
   if (scope === "both") {
     const avgAge =
-      wealthProfile.members.reduce((sum, member) => sum + member.currentAge, 0) /
-      Math.max(1, wealthProfile.members.length);
+      fallbackMembers.reduce((sum, member) => sum + member.currentAge, 0) /
+      Math.max(1, fallbackMembers.length);
     const avgLifetime =
-      wealthProfile.members.reduce((sum, member) => sum + member.expectedLifetime, 0) /
-      Math.max(1, wealthProfile.members.length);
+      fallbackMembers.reduce((sum, member) => sum + member.expectedLifetime, 0) /
+      Math.max(1, fallbackMembers.length);
     return {
       label: "Both (average)",
       currentAge: avgAge,
@@ -164,7 +180,7 @@ function getProfileAssumptions(scope: ProfileScope) {
     };
   }
 
-  const selected = wealthProfile.members.find((member) => member.id === scope) ?? wealthProfile.members[0];
+  const selected = fallbackMembers.find((member) => member.id === scope) ?? fallbackMembers[0];
   return {
     label: selected.name,
     currentAge: selected.currentAge,
@@ -823,7 +839,7 @@ function checkScenarioSuccess(
   return portfolioAtRetirement >= requiredAtRetirement;
 }
 
-function backendToFireScenario(s: WealthFireScenario): FireScenario {
+function backendToFireScenario(s: WealthFireScenario, members: ProfileMember[]): FireScenario {
   const w: WizardState = {
     name: s.name,
     annualIncomeEur: s.annualIncomeEur,
@@ -838,7 +854,7 @@ function backendToFireScenario(s: WealthFireScenario): FireScenario {
     capitalStrategy: s.capitalStrategy,
     startingPortfolioEur: s.startingPortfolioEur,
   };
-  const profile = getProfileAssumptions(s.profileScope);
+  const profile = getProfileAssumptions(s.profileScope, members);
   const c = mockCalc(w, profile);
   
   // Determine status based on base case and -1.5% stress scenario
@@ -887,10 +903,23 @@ function backendToFireScenario(s: WealthFireScenario): FireScenario {
 
 export default function WealthFireScenariosPage() {
   const displayedScenarioAdjustments = [-3.0, -1.5, 1.5, 3.0] as const;
+  const { data: rawPersonProfiles = [] } = useWealthPersonProfiles();
+  const personProfiles = (rawPersonProfiles as WealthPersonProfile[]).filter((profile) => profile.isActive !== false);
+  const profileMembers = useMemo<ProfileMember[]>(() => {
+    const sorted = [...personProfiles].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    const selected = sorted.slice(0, 2);
+    return selected.map((person, idx) => ({
+      id: idx === 0 ? "p-1" : "p-2",
+      name: person.name,
+      currentAge: Number(person.currentAge ?? 40),
+      expectedLifetime: Number(person.expectedLifetime ?? 90),
+    }));
+  }, [personProfiles]);
+
   const { data: rawScenarios = [], isLoading, isError } = useWealthFireScenarios();
   const scenarios: FireScenario[] = useMemo(
-    () => (rawScenarios as WealthFireScenario[]).map(backendToFireScenario),
-    [rawScenarios],
+    () => (rawScenarios as WealthFireScenario[]).map((scenario) => backendToFireScenario(scenario, profileMembers)),
+    [rawScenarios, profileMembers],
   );
   const { data: rawAccounts = [] } = useWealthAccounts();
   const accounts = rawAccounts as WealthAccount[];
@@ -998,7 +1027,10 @@ export default function WealthFireScenariosPage() {
     });
   }
 
-  const profileAssumptions = useMemo(() => getProfileAssumptions(wizard.profileScope), [wizard.profileScope]);
+  const profileAssumptions = useMemo(
+    () => getProfileAssumptions(wizard.profileScope, profileMembers),
+    [wizard.profileScope, profileMembers],
+  );
   const computed = useMemo(() => mockCalc(wizard, profileAssumptions), [wizard, profileAssumptions]);
   const step1Errors = useMemo(
     () => ({
@@ -1047,9 +1079,9 @@ export default function WealthFireScenariosPage() {
   const selectedComputed = useMemo(() => {
     if (!selected) return null;
     const selectedWizard = mapScenarioToWizard(selected);
-    const selectedProfile = getProfileAssumptions(selectedWizard.profileScope);
+    const selectedProfile = getProfileAssumptions(selectedWizard.profileScope, profileMembers);
     return mockCalc(selectedWizard, selectedProfile);
-  }, [selected]);
+  }, [profileMembers, selected]);
   const computedCashflowRows = useMemo(() => {
     const annualSavings = Math.max(0, wizard.annualIncomeEur - wizard.annualExpensesEur);
     const endYear = computed.targetRetirementYear + Math.round(computed.retirementYearsEstimate);
@@ -1586,8 +1618,8 @@ export default function WealthFireScenariosPage() {
                   }))
                 }
                 options={[
-                  { value: "p-1", label: "Sylvie" },
-                  { value: "p-2", label: "Matthieu" },
+                  { value: "p-1", label: profileMembers[0]?.name ?? "Person 1" },
+                  { value: "p-2", label: profileMembers[1]?.name ?? profileMembers[0]?.name ?? "Person 2" },
                   { value: "both", label: "Both (average)" },
                 ]}
               />

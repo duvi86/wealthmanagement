@@ -213,10 +213,62 @@ export function useComputeWealthTaxCalculator() {
 // Wealth – Accounts
 // ============================================================================
 
+export type WealthPersonProfile = {
+  id: string;
+  ownerUserId?: string | null;
+  name: string;
+  email?: string | null;
+  birthDate?: string | null;
+  currentAge?: number | null;  // stored as float with 1 decimal
+  expectedLifetime?: number | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export function useWealthPersonProfiles() {
+  return useQuery<WealthPersonProfile[]>({
+    queryKey: ["wealth", "persons"],
+    queryFn: async () => apiClient.get("/api/wealth/persons"),
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+export function useCreateWealthPersonProfile() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: Omit<WealthPersonProfile, "id" | "ownerUserId" | "createdAt" | "updatedAt"> & { id?: string }) =>
+      apiClient.post<WealthPersonProfile>("/api/wealth/persons", payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["wealth", "persons"] }),
+  });
+}
+
+export function useUpdateWealthPersonProfile() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...patch }: Partial<WealthPersonProfile> & { id: string }) =>
+      apiClient.patch<WealthPersonProfile>(`/api/wealth/persons/${id}`, patch),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["wealth", "persons"] }),
+  });
+}
+
+export function useDeleteWealthPersonProfile() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => apiClient.delete(`/api/wealth/persons/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["wealth", "persons"] }),
+  });
+}
+
 export type WealthAccount = {
   id: string;
   ownerId: string;
   ownerName: string;
+  ownershipSplit?: Array<{
+    ownerId: string;
+    ownerName?: string | null;
+    sharePct: number;
+  }>;
   coOwnerName?: string | null;
   coOwnerId?: string | null;
   accountName: string;

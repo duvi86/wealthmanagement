@@ -24,18 +24,22 @@ import {
   type MortgageType,
   computeTotals,
   formatMoney,
-  householdName,
-  people,
   toEur,
 } from "@/lib/wealth-mock-data";
 import {
   useWealthAccounts,
+  useWealthPersonProfiles,
+  useCreateWealthPersonProfile,
+  useUpdateWealthPersonProfile,
+  useDeleteWealthPersonProfile,
   useCreateWealthAccount,
   useUpdateWealthAccount,
   useDeleteWealthAccount,
   useDeleteAllWealthAccounts,
   useImportWealthAccountsCsv,
+  type WealthAccount,
   type WealthAccountImportSummary,
+  type WealthPersonProfile,
 } from "@/hooks/use-api";
 import { Skeleton } from "@/components/ui/loading";
 
@@ -153,7 +157,7 @@ function buildAccountsRegistryCsv(accounts: Account[]): string {
       expectedReturnPct: number;
       allocationBucket: string;
       isMortgageLoan: boolean;
-      mortgage: WealthAccount["mortgage"];
+      mortgage: WealthAccount["mortgage"] | MortgageDetails | null;
       balancesByDate: Map<string, string>;
     }
   >();
@@ -177,7 +181,7 @@ function buildAccountsRegistryCsv(accounts: Account[]): string {
     if (!groupedRows.has(rowKey)) {
       groupedRows.set(rowKey, {
         ownerName: account.ownerName,
-        coOwnerName: account.coOwnerName ?? "",
+        coOwnerName: (account as Partial<WealthAccount>).coOwnerName ?? "",
         accountName: account.accountName,
         institution: account.institution,
         accountType: account.type,
@@ -280,12 +284,10 @@ function DownloadIcon() {
   );
 }
 
-const SHARED_OWNER = {
-  id: "shared",
-  name: householdName,
+type OwnerOption = {
+  id: string;
+  name: string;
 };
-
-const OWNER_OPTIONS = [...people, SHARED_OWNER];
 
 type SupportedCurrency = "EUR" | "USD" | "CHF";
 
@@ -358,20 +360,28 @@ async function fetchFxToEur(currency: SupportedCurrency): Promise<number> {
   return rate;
 }
 
-function buildDefaultOwnershipSplit(ownerId: string) {
+function buildDefaultOwnershipSplit(ownerId: string, ownerOptions: OwnerOption[]) {
+  if (ownerOptions.length === 0) {
+    return {} as Record<string, number>;
+  }
   return Object.fromEntries(
-    people.map((person) => [person.id, ownerId === SHARED_OWNER.id ? Math.round(100 / people.length) : person.id === ownerId ? 100 : 0]),
+    ownerOptions.map((person) => [person.id, person.id === ownerId ? 100 : 0]),
   ) as Record<string, number>;
 }
 
-function buildOwnershipSplitForAccount(account?: Account, ownerId?: string) {
+function buildOwnershipSplitForAccount(account: Account | undefined, ownerId: string | undefined, ownerOptions: OwnerOption[]) {
+  if (ownerOptions.length === 0) {
+    return {} as Record<string, number>;
+  }
+
   if (account?.ownershipSplit?.length) {
     return Object.fromEntries(
-      people.map((person) => [person.id, account.ownershipSplit?.find((entry) => entry.ownerId === person.id)?.sharePct ?? 0]),
+      ownerOptions.map((person) => [person.id, account.ownershipSplit?.find((entry) => entry.ownerId === person.id)?.sharePct ?? 0]),
     ) as Record<string, number>;
   }
 
-  return buildDefaultOwnershipSplit(ownerId ?? account?.ownerId ?? SHARED_OWNER.id);
+  const defaultOwnerId = ownerId ?? account?.ownerId ?? ownerOptions[0]?.id;
+  return buildDefaultOwnershipSplit(defaultOwnerId ?? "", ownerOptions);
 }
 
 const TYPE_OPTIONS: Array<{ value: AccountType; label: string }> = [
@@ -544,11 +554,12 @@ function toBadgeTone(type: AccountType): "default" | "info" | "success" | "warni
   return "default";
 }
 
-function makeInitialForm(account?: Account): AccountFormState {
-  const ownerId = account?.ownerId ?? SHARED_OWNER.id;
+function makeInitialForm(account: Account | undefined, ownerOptions: OwnerOption[]): AccountFormState {
+  const hasMultipleOwners = (account?.ownershipSplit?.filter((entry) => entry.sharePct > 0).length ?? 0) > 1;
+  const ownerId = hasMultipleOwners ? "__multiple__" : (account?.ownerId ?? ownerOptions[0]?.id ?? "");
   return {
     ownerId,
-    ownershipSplit: buildOwnershipSplitForAccount(account, ownerId),
+    ownershipSplit: buildOwnershipSplitForAccount(account, ownerId, ownerOptions),
     accountName: account?.accountName ?? "",
     institution: account?.institution ?? "",
     type: account?.type ?? "Cash",
@@ -563,6 +574,17 @@ function makeInitialForm(account?: Account): AccountFormState {
 }
 
 export default function WealthAccountsPage() {
+  const { data: rawPersonProfiles = [] } = useWealthPersonProfiles();
+  const createPersonProfile = useCreateWealthPersonProfile();
+  const updatePersonProfile = useUpdateWealthPersonProfile();
+  const deletePersonProfile = useDeleteWealthPersonProfile();
+
+  const personProfiles = (rawPersonProfiles as WealthPersonProfile[]).filter((profile) => profile.isActive !== false);
+  const ownerOptions = useMemo<OwnerOption[]>(
+    () => personProfiles.map((profile) => ({ id: profile.id, name: profile.name })),
+    [personProfiles],
+  );
+
   const { data: rawAccounts = [], isLoading, isError } = useWealthAccounts();
   const sourceAccounts = rawAccounts as Account[];
   const currentMonthKey = useMemo(() => formatMonthKey(new Date()), []);
@@ -599,11 +621,35 @@ export default function WealthAccountsPage() {
     CHF: 1,
   });
   const hasAutoFxSyncedRef = useRef(false);
-  const [formState, setFormState] = useState<AccountFormState>(makeInitialForm());
+  const [formState, setFormState] = useState<AccountFormState>(makeInitialForm(undefined, ownerOptions));
+
+  const [isPersonFormOpen, setIsPersonFormOpen] = useState(false);
+  const [editingPersonId, setEditingPersonId] = useState<string | null>(null);
+  const [personFormState, setPersonFormState] = useState({
+    name: "",
+    email: "",
+    birthDate: "",
+    expectedLifetime: "",
+    isActive: true,
+  });
+  const [personFormError, setPersonFormError] = useState<string | null>(null);
   const [updateState, setUpdateState] = useState<AccountUpdateState>({
     nativeBalance: "0",
     updatedAt: "2026-04-10",
   });
+
+  useEffect(() => {
+    if (!ownerOptions.length) return;
+    setFormState((prev) => {
+      if (prev.ownerId) return prev;
+      const defaultOwnerId = ownerOptions[0].id;
+      return {
+        ...prev,
+        ownerId: defaultOwnerId,
+        ownershipSplit: buildDefaultOwnershipSplit(defaultOwnerId, ownerOptions),
+      };
+    });
+  }, [ownerOptions]);
 
   const selectedAccount = useMemo(
     () => accounts.find((account) => account.id === selectedAccountId) ?? null,
@@ -926,14 +972,62 @@ export default function WealthAccountsPage() {
 
   function openCreateModal() {
     setEditingAccountId(null);
-    setFormState(makeInitialForm());
+    setFormState(makeInitialForm(undefined, ownerOptions));
     setIsFormOpen(true);
   }
 
   function openEditModal(account: Account) {
     setEditingAccountId(account.id);
-    setFormState(makeInitialForm(account));
+    setFormState(makeInitialForm(account, ownerOptions));
     setIsFormOpen(true);
+  }
+
+  function openCreatePersonModal() {
+    setEditingPersonId(null);
+    setPersonFormError(null);
+    setPersonFormState({ name: "", email: "", birthDate: "", expectedLifetime: "", isActive: true });
+    setIsPersonFormOpen(true);
+  }
+
+  function openEditPersonModal(person: WealthPersonProfile) {
+    setEditingPersonId(person.id);
+    setPersonFormError(null);
+    setPersonFormState({
+      name: person.name,
+      email: person.email ?? "",
+      birthDate: person.birthDate ?? "",
+      expectedLifetime: person.expectedLifetime == null ? "" : String(person.expectedLifetime),
+      isActive: person.isActive,
+    });
+    setIsPersonFormOpen(true);
+  }
+
+  function handlePersonSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setPersonFormError(null);
+    const payload = {
+      name: personFormState.name,
+      email: personFormState.email.trim() || null,
+      birthDate: personFormState.birthDate.trim() || null,
+      expectedLifetime: personFormState.expectedLifetime.trim() ? Number(personFormState.expectedLifetime) : null,
+      isActive: personFormState.isActive,
+    };
+
+    const onSuccess = () => setIsPersonFormOpen(false);
+    const onError = (err: unknown) => {
+      const msg = err instanceof Error ? err.message : "Save failed. Please try again.";
+      setPersonFormError(msg);
+    };
+
+    if (editingPersonId) {
+      updatePersonProfile.mutate({ id: editingPersonId, ...payload }, { onSuccess, onError });
+    } else {
+      createPersonProfile.mutate(payload as any, { onSuccess, onError });
+    }
+  }
+
+  function handleDeletePerson(personId: string) {
+    deletePersonProfile.mutate(personId);
   }
 
   function openUpdateModal(account: Account) {
@@ -953,8 +1047,39 @@ export default function WealthAccountsPage() {
 
   function handleFormSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const owner = OWNER_OPTIONS.find((person) => person.id === formState.ownerId);
-    if (!owner) return;
+    const isMultipleOwners = formState.ownerId === "__multiple__";
+
+    const ownershipSplit = isMultipleOwners
+      ? ownerOptions
+          .map((person) => ({
+            ownerId: person.id,
+            ownerName: person.name,
+            sharePct: Number(formState.ownershipSplit[person.id] ?? 0),
+          }))
+          .filter((entry) => entry.sharePct > 0)
+      : (() => {
+          const owner = ownerOptions.find((person) => person.id === formState.ownerId);
+          if (!owner) return [];
+          return [{ ownerId: owner.id, ownerName: owner.name, sharePct: 100 }];
+        })();
+
+    if (ownershipSplit.length === 0) {
+      window.alert("Select at least one owner.");
+      return;
+    }
+    if (isMultipleOwners && ownershipSplit.length < 2) {
+      window.alert("Select at least two owners when using Multiple.");
+      return;
+    }
+    const ownershipTotal = ownershipSplit.reduce((sum, entry) => sum + entry.sharePct, 0);
+    if (isMultipleOwners && Math.abs(ownershipTotal - 100) > 0.01) {
+      window.alert("Ownership split must sum to 100%.");
+      return;
+    }
+
+    ownershipSplit.sort((a, b) => b.sharePct - a.sharePct);
+    const primaryOwner = ownershipSplit[0];
+    const coOwner = ownershipSplit[1];
 
     const portfolioLines =
       formState.type === "Investment"
@@ -983,8 +1108,11 @@ export default function WealthAccountsPage() {
 
     const payload: Account = {
       id: editingAccountId ?? `a-${Date.now()}`,
-      ownerId: owner.id,
-      ownerName: owner.name,
+      ownerId: primaryOwner.ownerId,
+      ownerName: primaryOwner.ownerName,
+      ownershipSplit,
+      coOwnerId: coOwner?.ownerId,
+      coOwnerName: coOwner?.ownerName,
       accountName: formState.accountName,
       institution: formState.institution,
       type: formState.type,
@@ -1145,6 +1273,57 @@ export default function WealthAccountsPage() {
 
       <SurfaceCard>
         <div className="card-header">
+          <h3 style={{ margin: 0 }}>Person Profiles</h3>
+          <Button onClick={openCreatePersonModal}>Add Person</Button>
+        </div>
+        {personProfiles.length === 0 ? (
+          <EmptyState title="No person profiles" description="Create at least one person before creating accounts." />
+        ) : (
+          <DataTable
+            rowKey="id"
+            searchable={false}
+            pageSize={6}
+            columns={[
+              { key: "name", header: "Name" },
+              { key: "email", header: "Email", render: (value: unknown) => String(value ?? "-") },
+              { key: "birthDate", header: "Birth Date", render: (value: unknown) => String(value ?? "-") },
+              { key: "currentAge", header: "Age", render: (value: unknown) => (value == null ? "-" : Number(value).toFixed(1)) },
+              {
+                key: "expectedLifetime",
+                header: "Exp. Lifetime",
+                render: (value: unknown) => (value == null ? "-" : String(value)),
+              },
+              {
+                key: "isActive",
+                header: "Status",
+                render: (value: unknown) => <Badge tone={value ? "success" : "default"}>{value ? "Active" : "Inactive"}</Badge>,
+              },
+              {
+                key: "id",
+                header: "Actions",
+                sortable: false,
+                render: (_: unknown, row: Record<string, unknown>) => {
+                  const person = row as unknown as WealthPersonProfile;
+                  return (
+                    <div className="wealth-actions-row">
+                      <Button size="sm" variant="secondary" onClick={() => openEditPersonModal(person)}>
+                        Edit
+                      </Button>
+                      <Button size="sm" variant="danger" onClick={() => handleDeletePerson(person.id)}>
+                        Delete
+                      </Button>
+                    </div>
+                  );
+                },
+              },
+            ]}
+            data={personProfiles as unknown as Record<string, unknown>[]}
+          />
+        )}
+      </SurfaceCard>
+
+      <SurfaceCard>
+        <div className="card-header">
           <h3 style={{ margin: 0 }}>Filters</h3>
         </div>
         <div className="wealth-filter-grid">
@@ -1154,7 +1333,7 @@ export default function WealthAccountsPage() {
             onChange={(e) => setOwnerFilter(e.target.value)}
             options={[
               { value: "all", label: "All owners" },
-              ...OWNER_OPTIONS.map((person) => ({ value: person.id, label: person.name })),
+              ...ownerOptions.map((person) => ({ value: person.id, label: person.name })),
             ]}
           />
           <FormDropdown
@@ -1258,7 +1437,14 @@ export default function WealthAccountsPage() {
             >
               <DownloadIcon />
             </Button>
-            <Button onClick={openCreateModal}>Add Account</Button>
+            <span
+              title={ownerOptions.length === 0 ? "Add at least one person in the Person Profiles section below first" : undefined}
+              style={{ display: "inline-block" }}
+            >
+              <Button onClick={openCreateModal} disabled={ownerOptions.length === 0}>
+                Add Account
+              </Button>
+            </span>
             <button
               className="wealth-icon-btn wealth-icon-btn--accent"
               title="Erase all accounts"
@@ -1268,6 +1454,11 @@ export default function WealthAccountsPage() {
             </button>
           </div>
         </div>
+        {ownerOptions.length === 0 && !isLoading ? (
+          <p className="wealth-muted" style={{ marginTop: 0, color: "var(--color-status-warning, #b45309)" }}>
+            No person profiles yet — add a person in the <strong>Person Profiles</strong> section below before creating accounts.
+          </p>
+        ) : null}
         {fxSyncStatus === "error" && fxSyncError ? (
           <p className="wealth-muted" style={{ marginTop: 0, color: "var(--color-status-error)" }}>
             {fxSyncError}
@@ -1362,10 +1553,29 @@ export default function WealthAccountsPage() {
             <div className="form-row-2">
               <FormDropdown
                 required
-                label="Owner"
+                label="Primary Owner"
                 value={formState.ownerId}
-                onChange={(e) => setFormState((prev) => ({ ...prev, ownerId: e.target.value }))}
-                options={OWNER_OPTIONS.map((person) => ({ value: person.id, label: person.name }))}
+                onChange={(e) => {
+                  const nextOwnerId = e.target.value;
+                  setFormState((prev) => {
+                    const nextSplit = { ...prev.ownershipSplit };
+                    if (nextOwnerId === "__multiple__") {
+                      return { ...prev, ownerId: nextOwnerId, ownershipSplit: nextSplit };
+                    }
+                    for (const person of ownerOptions) {
+                      nextSplit[person.id] = person.id === nextOwnerId ? 100 : 0;
+                    }
+                    return { ...prev, ownerId: nextOwnerId, ownershipSplit: nextSplit };
+                  });
+                }}
+                options={
+                  ownerOptions.length
+                    ? [
+                        ...ownerOptions.map((person) => ({ value: person.id, label: person.name })),
+                        { value: "__multiple__", label: "Multiple" },
+                      ]
+                    : [{ value: "", label: "No person profiles available" }]
+                }
               />
               <FormDropdown
                 required
@@ -1388,6 +1598,39 @@ export default function WealthAccountsPage() {
                 options={TYPE_OPTIONS}
               />
             </div>
+            {formState.ownerId === "__multiple__" ? (
+            <div className="form-section" style={{ paddingTop: 0 }}>
+              <p className="form-section-label">Ownership Split (%)</p>
+              <div className="stack" style={{ gap: "var(--spacing-8)" }}>
+                {ownerOptions.map((person) => (
+                  <div key={person.id} className="form-row-2">
+                    <FormInput
+                      label={person.name}
+                      type="number"
+                      min={0}
+                      max={100}
+                      step="0.1"
+                      value={String(formState.ownershipSplit[person.id] ?? 0)}
+                      onChange={(e) => {
+                        const numeric = Number(e.target.value || 0);
+                        const safe = Number.isFinite(numeric) ? Math.max(0, Math.min(100, numeric)) : 0;
+                        setFormState((prev) => ({
+                          ...prev,
+                          ownershipSplit: { ...prev.ownershipSplit, [person.id]: safe },
+                        }));
+                      }}
+                    />
+                    <div style={{ display: "flex", alignItems: "end", paddingBottom: "8px" }}>
+                      <span className="wealth-muted">%</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="wealth-muted" style={{ marginTop: "8px", marginBottom: 0 }}>
+                Total: {ownerOptions.reduce((sum, person) => sum + Number(formState.ownershipSplit[person.id] ?? 0), 0).toFixed(1)}%
+              </p>
+            </div>
+            ) : null}
             <div className="form-row-2">
               <FormInput
                 required
@@ -1778,6 +2021,79 @@ export default function WealthAccountsPage() {
               </div>
             </>
           )}
+        </FormContainer>
+      </Modal>
+
+      <Modal
+        open={isPersonFormOpen}
+        onClose={() => setIsPersonFormOpen(false)}
+        title={editingPersonId ? "Edit Person" : "New Person"}
+      >
+        <FormContainer
+          onSubmit={handlePersonSubmit}
+          footer={
+            <div className="wealth-modal-actions">
+              <Button type="button" variant="secondary" onClick={() => setIsPersonFormOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit">Save Person</Button>
+            </div>
+          }
+        >
+          <FormInput
+            required
+            label="Name"
+            value={personFormState.name}
+            onChange={(e) => setPersonFormState((prev) => ({ ...prev, name: e.target.value }))}
+          />
+          <FormInput
+            label="Email"
+            value={personFormState.email}
+            onChange={(e) => setPersonFormState((prev) => ({ ...prev, email: e.target.value }))}
+          />
+          <div className="form-row-2">
+            <FormDatepicker
+              label="Birth date"
+              value={personFormState.birthDate}
+              onChange={(e) => setPersonFormState((prev) => ({ ...prev, birthDate: e.target.value }))}
+            />
+            <FormInput
+              label="Age (computed)"
+              type="text"
+              readOnly
+              value={
+                personFormState.birthDate
+                  ? (() => {
+                      const b = new Date(personFormState.birthDate);
+                      const today = new Date();
+                      const age = today.getFullYear() - b.getFullYear() -
+                        (today.getMonth() < b.getMonth() || (today.getMonth() === b.getMonth() && today.getDate() < b.getDate()) ? 1 : 0);
+                      return isNaN(age) ? "" : age.toFixed(1);
+                    })()
+                  : ""
+              }
+            />
+          </div>
+          <div className="form-row-2">
+            <FormInput
+              type="number"
+              min={0}
+              label="Expected lifetime"
+              value={personFormState.expectedLifetime}
+              onChange={(e) => setPersonFormState((prev) => ({ ...prev, expectedLifetime: e.target.value }))}
+            />
+          </div>
+          {personFormError ? (
+            <p style={{ color: "var(--color-status-error)", margin: 0, fontSize: "0.875rem" }}>{personFormError}</p>
+          ) : null}
+          <label className="wealth-checkbox-row">
+            <input
+              type="checkbox"
+              checked={personFormState.isActive}
+              onChange={(e) => setPersonFormState((prev) => ({ ...prev, isActive: e.target.checked }))}
+            />
+            Active
+          </label>
         </FormContainer>
       </Modal>
 

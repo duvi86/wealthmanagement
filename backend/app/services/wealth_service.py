@@ -8,6 +8,7 @@ import re
 import ssl
 import uuid
 from datetime import date
+from datetime import datetime, timezone
 from urllib.error import URLError, HTTPError
 from urllib.request import urlopen
 from typing import Any
@@ -20,6 +21,7 @@ from ..db.models import (
     WealthDecision,
     WealthFireScenario,
     WealthMortgage,
+    WealthPersonProfile,
     WealthPortfolioLine,
     WealthSnapshot,
 )
@@ -32,6 +34,8 @@ from ..schemas.wealth import (
     DecisionUpdate,
     FireScenarioCreate,
     FireScenarioUpdate,
+    PersonProfileCreate,
+    PersonProfileUpdate,
     SnapshotCreate,
     TaxCalculatorInput,
 )
@@ -224,6 +228,171 @@ def _refresh_saved_snapshots(db: Session) -> None:
         snapshot.liabilities_eur = liabilities_eur
 
     db.commit()
+
+
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _get_profile_name_if_valid(
+    db: Session,
+    profile_id: str,
+    role_label: str,
+) -> str:
+    profile = db.query(WealthPersonProfile).filter(WealthPersonProfile.id == profile_id).first()
+    has_profiles = db.query(WealthPersonProfile.id).first() is not None
+
+    if profile:
+        return profile.name
+
+    # Compatibility mode: before profiles are introduced for a tenant, keep legacy behavior.
+    if not has_profiles:
+        return ""
+
+    raise ValueError(f"Unknown {role_label} id '{profile_id}'. Please select an existing person profile.")
+
+
+def _normalize_ownership_split(
+    db: Session,
+    ownership_split: list[dict[str, Any]] | None,
+    fallback_owner_id: str,
+    fallback_owner_name: str,
+) -> list[dict[str, Any]]:
+    """Validate and normalize ownership split entries.
+
+    - Filters out zero/negative shares
+    - Resolves owner names from person profiles when available
+    - Ensures at least one valid owner exists
+    """
+    if not ownership_split:
+        return [{"owner_id": fallback_owner_id, "owner_name": fallback_owner_name, "share_pct": 100.0}]
+
+    normalized: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for entry in ownership_split:
+        owner_id = str(entry.get("owner_id", "")).strip()
+        share_pct = float(entry.get("share_pct", 0) or 0)
+        if not owner_id or share_pct <= 0:
+            continue
+        if owner_id in seen:
+            continue
+        owner_name = _get_profile_name_if_valid(db, owner_id, "owner") or str(entry.get("owner_name") or "").strip()
+        normalized.append({"owner_id": owner_id, "owner_name": owner_name, "share_pct": round(share_pct, 2)})
+        seen.add(owner_id)
+
+    if not normalized:
+        return [{"owner_id": fallback_owner_id, "owner_name": fallback_owner_name, "share_pct": 100.0}]
+
+    normalized.sort(key=lambda item: item["share_pct"], reverse=True)
+    return normalized
+
+
+def list_person_profiles(db: Session, owner_user_id: str) -> list[WealthPersonProfile]:
+    from sqlalchemy import or_
+    return (
+        db.query(WealthPersonProfile)
+        .filter(
+            or_(
+                WealthPersonProfile.owner_user_id == owner_user_id,
+                WealthPersonProfile.owner_user_id.is_(None),
+            )
+        )
+        .order_by(WealthPersonProfile.created_at.asc())
+        .all()
+    )
+
+
+def get_person_profile(db: Session, owner_user_id: str, profile_id: str) -> Optional[WealthPersonProfile]:
+    from sqlalchemy import or_
+    return (
+        db.query(WealthPersonProfile)
+        .filter(
+            WealthPersonProfile.id == profile_id,
+            or_(
+                WealthPersonProfile.owner_user_id == owner_user_id,
+                WealthPersonProfile.owner_user_id.is_(None),
+            ),
+        )
+        .first()
+    )
+
+
+def _compute_age(birth_date_str: Optional[str]) -> Optional[float]:
+    """Return current age in years (1 decimal) from an ISO date string, or None."""
+    if not birth_date_str:
+        return None
+    try:
+        from datetime import date
+        birth = date.fromisoformat(birth_date_str)
+        today = date.today()
+        days = (today - birth).days
+        return round(days / 365.25, 1)
+    except Exception:
+        return None
+
+
+def create_person_profile(db: Session, owner_user_id: str, data: PersonProfileCreate) -> WealthPersonProfile:
+    now = _utc_now_iso()
+    computed_age = _compute_age(data.birth_date) if data.birth_date else data.current_age
+    profile = WealthPersonProfile(
+        id=data.id or _new_id("pp-"),
+        owner_user_id=owner_user_id,
+        email=data.email,
+        name=data.name,
+        birth_date=data.birth_date,
+        current_age=computed_age,
+        expected_lifetime=data.expected_lifetime,
+        is_active=data.is_active,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(profile)
+    db.commit()
+    db.refresh(profile)
+    return profile
+
+
+def update_person_profile(
+    db: Session,
+    owner_user_id: str,
+    profile_id: str,
+    data: PersonProfileUpdate,
+) -> Optional[WealthPersonProfile]:
+    profile = get_person_profile(db, owner_user_id, profile_id)
+    if not profile:
+        return None
+
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(profile, field, value)
+    # If birth_date changed, recompute current_age automatically
+    if "birth_date" in data.model_dump(exclude_unset=True):
+        computed = _compute_age(profile.birth_date)
+        if computed is not None:
+            profile.current_age = computed
+    profile.updated_at = _utc_now_iso()
+
+    db.commit()
+    db.refresh(profile)
+    return profile
+
+
+def delete_person_profile(db: Session, owner_user_id: str, profile_id: str) -> bool:
+    profile = get_person_profile(db, owner_user_id, profile_id)
+    if not profile:
+        return False
+
+    is_owner_used = db.query(WealthAccount).filter(WealthAccount.owner_id == profile_id).first() is not None
+    is_co_owner_used = db.query(WealthAccount).filter(WealthAccount.co_owner_id == profile_id).first() is not None
+    split_used = any(
+        any((entry or {}).get("owner_id") == profile_id for entry in (account.ownership_split or []))
+        for account in db.query(WealthAccount).all()
+    )
+    if is_owner_used or is_co_owner_used or split_used:
+        raise ValueError("Cannot delete person profile while it is referenced by an account.")
+
+    db.delete(profile)
+    db.commit()
+    return True
 
 
 def import_accounts_from_csv(db: Session, content: bytes) -> AccountImportSummary:
@@ -669,10 +838,33 @@ def get_account(db: Session, account_id: str) -> Optional[WealthAccount]:
 
 
 def create_account(db: Session, data: AccountCreate) -> WealthAccount:
+    owner_name = data.owner_name
+    resolved_owner_name = _get_profile_name_if_valid(db, data.owner_id, "owner")
+    if resolved_owner_name:
+        owner_name = resolved_owner_name
+
+    co_owner_name = data.co_owner_name
+    if data.co_owner_id:
+        resolved_co_owner_name = _get_profile_name_if_valid(db, data.co_owner_id, "co-owner")
+        if resolved_co_owner_name:
+            co_owner_name = resolved_co_owner_name
+
+    split_entries = _normalize_ownership_split(
+        db,
+        [entry.model_dump() for entry in (data.ownership_split or [])],
+        data.owner_id,
+        owner_name,
+    )
+    primary = split_entries[0]
+    secondary = split_entries[1] if len(split_entries) > 1 else None
+
     account = WealthAccount(
         id=data.id or _new_id("a-"),
-        owner_id=data.owner_id,
-        owner_name=data.owner_name,
+        owner_id=primary["owner_id"],
+        owner_name=primary["owner_name"] or owner_name,
+        co_owner_id=secondary["owner_id"] if secondary else data.co_owner_id,
+        co_owner_name=(secondary["owner_name"] if secondary else co_owner_name),
+        ownership_split=split_entries,
         account_name=data.account_name,
         institution=data.institution,
         type=data.type,
@@ -719,7 +911,38 @@ def update_account(db: Session, account_id: str, data: AccountUpdate) -> Optiona
     if not account:
         return None
 
-    for field, value in data.model_dump(exclude_unset=True, exclude={"portfolio_lines", "mortgage"}).items():
+    update_payload = data.model_dump(exclude_unset=True, exclude={"portfolio_lines", "mortgage"})
+
+    if "owner_id" in update_payload and update_payload["owner_id"]:
+        resolved_owner_name = _get_profile_name_if_valid(db, update_payload["owner_id"], "owner")
+        if resolved_owner_name:
+            update_payload["owner_name"] = resolved_owner_name
+
+    if "co_owner_id" in update_payload:
+        co_owner_id = update_payload["co_owner_id"]
+        if co_owner_id:
+            resolved_co_owner_name = _get_profile_name_if_valid(db, co_owner_id, "co-owner")
+            if resolved_co_owner_name:
+                update_payload["co_owner_name"] = resolved_co_owner_name
+        else:
+            update_payload["co_owner_name"] = None
+
+    if "ownership_split" in update_payload:
+        split_entries = _normalize_ownership_split(
+            db,
+            update_payload.get("ownership_split") or [],
+            account.owner_id,
+            account.owner_name,
+        )
+        primary = split_entries[0]
+        secondary = split_entries[1] if len(split_entries) > 1 else None
+        update_payload["ownership_split"] = split_entries
+        update_payload["owner_id"] = primary["owner_id"]
+        update_payload["owner_name"] = primary["owner_name"]
+        update_payload["co_owner_id"] = secondary["owner_id"] if secondary else None
+        update_payload["co_owner_name"] = secondary["owner_name"] if secondary else None
+
+    for field, value in update_payload.items():
         setattr(account, field, value)
 
     if data.portfolio_lines is not None:

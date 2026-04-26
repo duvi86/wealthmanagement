@@ -79,6 +79,12 @@ class MortgageOut(MortgageBase):
     model_config = {"from_attributes": True}
 
 
+class OwnershipSplitEntry(BaseModel):
+    owner_id: str
+    owner_name: Optional[str] = None
+    share_pct: float
+
+
 # ── Account ────────────────────────────────────────────────────────────────────
 
 class AccountBase(BaseModel):
@@ -86,6 +92,7 @@ class AccountBase(BaseModel):
     owner_name: str
     co_owner_name: Optional[str] = None
     co_owner_id: Optional[str] = None
+    ownership_split: list[OwnershipSplitEntry] = []
     account_name: str
     institution: str
     type: AccountType
@@ -95,6 +102,12 @@ class AccountBase(BaseModel):
     expected_return_pct: float = 0.0
     allocation_bucket: Optional[AllocationBucket] = None
     updated_at: str
+
+    @field_validator("ownership_split", mode="before")
+    @classmethod
+    def _normalize_ownership_split(cls, value):
+        # Backward compatibility: legacy rows may have NULL before split support existed.
+        return [] if value is None else value
 
 
 class AccountCreate(AccountBase):
@@ -108,6 +121,7 @@ class AccountUpdate(BaseModel):
     owner_name: Optional[str] = None
     co_owner_name: Optional[str] = None
     co_owner_id: Optional[str] = None
+    ownership_split: Optional[list[OwnershipSplitEntry]] = None
     account_name: Optional[str] = None
     institution: Optional[str] = None
     type: Optional[AccountType] = None
@@ -245,6 +259,39 @@ class DecisionUpdate(BaseModel):
 
 class DecisionOut(DecisionBase):
     id: str
+
+    model_config = {"from_attributes": True}
+
+
+# ── Person Profiles ───────────────────────────────────────────────────────────
+
+class PersonProfileBase(BaseModel):
+    name: str
+    email: Optional[str] = None
+    birth_date: Optional[str] = None
+    current_age: Optional[float] = None
+    expected_lifetime: Optional[int] = None
+    is_active: bool = True
+
+
+class PersonProfileCreate(PersonProfileBase):
+    id: Optional[str] = None
+
+
+class PersonProfileUpdate(BaseModel):
+    name: Optional[str] = None
+    email: Optional[str] = None
+    birth_date: Optional[str] = None
+    current_age: Optional[float] = None
+    expected_lifetime: Optional[int] = None
+    is_active: Optional[bool] = None
+
+
+class PersonProfileOut(PersonProfileBase):
+    id: str
+    owner_user_id: Optional[str] = None
+    created_at: str
+    updated_at: str
 
     model_config = {"from_attributes": True}
 

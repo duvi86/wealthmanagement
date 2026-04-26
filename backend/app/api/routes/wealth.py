@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from ...db import get_db
+from ...schemas.auth_dependencies import get_current_authorized_user
 from ...schemas.wealth import (
     AccountCreate,
     AccountImportSummary,
@@ -15,6 +16,9 @@ from ...schemas.wealth import (
     FireScenarioCreate,
     FireScenarioOut,
     FireScenarioUpdate,
+    PersonProfileCreate,
+    PersonProfileOut,
+    PersonProfileUpdate,
     SnapshotCreate,
     SnapshotOut,
     TaxCalculatorComputeOut,
@@ -23,7 +27,11 @@ from ...schemas.wealth import (
 )
 from ...services import wealth_service
 
-router = APIRouter(prefix="/wealth", tags=["wealth"])
+router = APIRouter(
+    prefix="/wealth",
+    tags=["wealth"],
+    dependencies=[Depends(get_current_authorized_user)],
+)
 
 
 # ── Accounts ───────────────────────────────────────────────────────────────────
@@ -43,7 +51,10 @@ def get_account(account_id: str, db: Session = Depends(get_db)):
 
 @router.post("/accounts", response_model=AccountOut, status_code=201)
 def create_account(data: AccountCreate, db: Session = Depends(get_db)):
-    return wealth_service.create_account(db, data)
+    try:
+        return wealth_service.create_account(db, data)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/accounts/import", response_model=AccountImportSummary)
@@ -58,7 +69,10 @@ async def import_accounts(file: UploadFile = File(...), db: Session = Depends(ge
 
 @router.patch("/accounts/{account_id}", response_model=AccountOut)
 def update_account(account_id: str, data: AccountUpdate, db: Session = Depends(get_db)):
-    account = wealth_service.update_account(db, account_id, data)
+    try:
+        account = wealth_service.update_account(db, account_id, data)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
     return account
@@ -170,6 +184,64 @@ def update_decision(decision_id: str, data: DecisionUpdate, db: Session = Depend
 def delete_decision(decision_id: str, db: Session = Depends(get_db)):
     if not wealth_service.delete_decision(db, decision_id):
         raise HTTPException(status_code=404, detail="Decision not found")
+
+
+# ── Person Profiles ───────────────────────────────────────────────────────────
+
+@router.get("/persons", response_model=list[PersonProfileOut])
+def list_person_profiles(
+    current_user_id: str = Depends(get_current_authorized_user),
+    db: Session = Depends(get_db),
+):
+    return wealth_service.list_person_profiles(db, current_user_id)
+
+
+@router.get("/persons/{profile_id}", response_model=PersonProfileOut)
+def get_person_profile(
+    profile_id: str,
+    current_user_id: str = Depends(get_current_authorized_user),
+    db: Session = Depends(get_db),
+):
+    profile = wealth_service.get_person_profile(db, current_user_id, profile_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Person profile not found")
+    return profile
+
+
+@router.post("/persons", response_model=PersonProfileOut, status_code=201)
+def create_person_profile(
+    data: PersonProfileCreate,
+    current_user_id: str = Depends(get_current_authorized_user),
+    db: Session = Depends(get_db),
+):
+    return wealth_service.create_person_profile(db, current_user_id, data)
+
+
+@router.patch("/persons/{profile_id}", response_model=PersonProfileOut)
+def update_person_profile(
+    profile_id: str,
+    data: PersonProfileUpdate,
+    current_user_id: str = Depends(get_current_authorized_user),
+    db: Session = Depends(get_db),
+):
+    profile = wealth_service.update_person_profile(db, current_user_id, profile_id, data)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Person profile not found")
+    return profile
+
+
+@router.delete("/persons/{profile_id}", status_code=204)
+def delete_person_profile(
+    profile_id: str,
+    current_user_id: str = Depends(get_current_authorized_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        deleted = wealth_service.delete_person_profile(db, current_user_id, profile_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Person profile not found")
 
 
 # ── Investment Tax Calculator ────────────────────────────────────────────────

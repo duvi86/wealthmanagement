@@ -55,6 +55,8 @@ export type Account = {
   id: string;
   ownerId: string;
   ownerName: string;
+  coOwnerId?: string;
+  coOwnerName?: string;
   ownershipSplit?: Array<{
     ownerId: string;
     ownerName: string;
