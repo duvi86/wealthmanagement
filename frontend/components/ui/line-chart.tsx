@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useMemo } from "react";
 import {
   CartesianGrid,
   Legend,
@@ -62,27 +63,112 @@ export function LineChart({
   tooltipLabelFormatter,
   tooltipValueFormatter,
 }: LineChartProps) {
-  // Compute smart Y-axis domain to avoid empty space
-  let minValue = Infinity;
-  let maxValue = -Infinity;
-  data.forEach((row) => {
-    series.forEach((s) => {
-      const val = Number(row[s.dataKey] ?? 0);
-      if (val < minValue) minValue = val;
-      if (val > maxValue) maxValue = val;
+  const [visibleSeries, setVisibleSeries] = useState<Set<string>>(new Set(series.map((s) => s.dataKey)));
+
+  const handleLegendClick = (e: any) => {
+    const dataKey = e.dataKey;
+    setVisibleSeries((prev) => {
+      const updated = new Set(prev);
+      if (updated.has(dataKey)) {
+        updated.delete(dataKey);
+      } else {
+        updated.add(dataKey);
+      }
+      return updated;
     });
-  });
+  };
 
-  const range = maxValue - minValue;
-  const safeRange = range === 0 ? Math.max(Math.abs(maxValue), 1) * 0.1 : range;
-  const padding = safeRange * 0.05;
-  let yMin = minValue - padding;
-  let yMax = maxValue + padding;
+  // Memoized domain calculation that recalculates whenever visible series change
+  const { yMin, yMax, ticks } = useMemo(() => {
+    // Compute smart Y-axis domain to maximize data visualization (80%+ of vertical space)
+    // Only consider data from visible series
+    let minValue = Infinity;
+    let maxValue = -Infinity;
+    
+    // Iterate only over visible series for accurate min/max
+    data.forEach((row) => {
+      visibleSeries.forEach((dataKey) => {
+        const val = Number(row[dataKey]);
+        // Only count valid finite numbers
+        if (Number.isFinite(val)) {
+          if (val < minValue) minValue = val;
+          if (val > maxValue) maxValue = val;
+        }
+      });
+    });
 
-  // Keep 0 in the domain if data is close to it
-  if (minValue >= 0 && minValue < range * 0.1) {
-    yMin = 0;
-  }
+    // Handle case where no visible series or empty data
+    if (minValue === Infinity || maxValue === -Infinity) {
+      minValue = 0;
+      maxValue = 1;
+    }
+
+    const range = maxValue - minValue;
+    // Use minimal 1% padding to maximize space usage
+    const padding = range === 0 ? 0.5 : range * 0.01;
+    let yMin = minValue - padding;
+    let yMax = maxValue + padding;
+
+    // Ensure yMin and yMax are different
+    if (yMin === yMax) {
+      yMax = yMin + 1;
+    }
+
+    // Generate explicit ticks to force Recharts to use our exact domain
+    const tickCount = 5;
+    const generatedTicks = [];
+    for (let i = 0; i <= tickCount; i++) {
+      generatedTicks.push(yMin + (yMax - yMin) * (i / tickCount));
+    }
+
+    return { yMin, yMax, ticks: generatedTicks };
+  }, [data, visibleSeries]);
+
+  const renderCustomLegend = (props: any) => {
+    const { payload } = props;
+    if (!payload || payload.length === 0) return null;
+
+    return (
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", fontSize: 12, fontFamily: "var(--font-regular)", marginTop: "0px" }}>
+        {payload.map((entry: any, index: number) => {
+          const isVisible = visibleSeries.has(entry.dataKey);
+          return (
+            <button
+              key={`${entry.dataKey}-${index}`}
+              onClick={() => handleLegendClick({ dataKey: entry.dataKey })}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                cursor: "pointer",
+                border: "none",
+                background: "transparent",
+                padding: "0",
+                opacity: isVisible ? 1 : 0.5,
+                transition: "opacity 120ms ease",
+                fontSize: "inherit",
+                fontFamily: "inherit",
+              }}
+            >
+              <span
+                style={{
+                  width: "12px",
+                  height: "12px",
+                  backgroundColor: entry.color || "var(--color-stroke-primary)",
+                  borderRadius: "2px",
+                  display: "inline-block",
+                }}
+              />
+              <span style={{ color: "var(--color-text-default)" }}>
+                {entry.value}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    );
+  };
+
 
   return (
     <ResponsiveContainer width="100%" height={height}>
@@ -97,7 +183,11 @@ export function LineChart({
           label={xLabel ? { value: xLabel, position: "insideBottom", offset: -12, fontSize: 12 } : undefined}
         />
         <YAxis
+          type="number"
           domain={[yMin, yMax]}
+          ticks={ticks}
+          nice={false}
+          allowDecimals={true}
           tickFormatter={yTickFormatter ?? formatCompactAxisValue}
           tick={{ fontSize: 12, fontFamily: "var(--font-regular)" }}
           label={yLabel ? { value: yLabel, angle: -90, position: "insideLeft", fontSize: 12 } : undefined}
@@ -129,7 +219,7 @@ export function LineChart({
             borderRadius: "var(--border-radius-medium)",
           }}
         />
-        <Legend wrapperStyle={{ fontSize: 12, fontFamily: "var(--font-regular)" }} />
+        <Legend wrapperStyle={{ fontSize: 12, fontFamily: "var(--font-regular)", paddingTop: "0px", marginBottom: "-8px" }} content={renderCustomLegend} layout="horizontal" verticalAlign="top" />
         {referenceLines.map((line) => (
           <ReferenceLine
             key={`${line.x}-${line.label ?? "reference"}`}
@@ -139,18 +229,22 @@ export function LineChart({
             label={line.label ? { value: line.label, position: "insideTopRight", fontSize: 12 } : undefined}
           />
         ))}
-        {series.map((s, i) => (
-          <Line
-            key={s.dataKey}
-            dataKey={s.dataKey}
-            name={s.name ?? s.dataKey}
-            stroke={s.color ?? DEFAULT_COLORS[i % DEFAULT_COLORS.length]}
-            strokeWidth={2}
-            dot={{ r: 3 }}
-            activeDot={{ r: 5 }}
-            type="monotone"
-          />
-        ))}
+        {series.map((s, i) => {
+          const isVisible = visibleSeries.has(s.dataKey);
+          return (
+            <Line
+              key={s.dataKey}
+              dataKey={s.dataKey}
+              name={s.name ?? s.dataKey}
+              stroke={s.color ?? DEFAULT_COLORS[i % DEFAULT_COLORS.length]}
+              strokeWidth={isVisible ? 2 : 0}
+              strokeOpacity={isVisible ? 1 : 0}
+              dot={isVisible ? { r: 3 } : false}
+              activeDot={isVisible ? { r: 5 } : false}
+              type="monotone"
+            />
+          );
+        })}
       </RechartsLineChart>
     </ResponsiveContainer>
   );
