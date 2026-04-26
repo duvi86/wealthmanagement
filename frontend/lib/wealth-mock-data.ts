@@ -547,6 +547,7 @@ export type FireScenario = {
   altRetirementYearGap?: number;
   retirementAmountGap: number;
   chartSeries: Array<{ period: string; portfolioEur: number }>;
+  accountIds: string[];
 };
 
 export type FinancialDecision = {

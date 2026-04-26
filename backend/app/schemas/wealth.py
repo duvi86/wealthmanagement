@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from typing import Literal, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # ── Sub-types ──────────────────────────────────────────────────────────────────
@@ -180,6 +180,16 @@ class FireScenarioBase(BaseModel):
     capital_strategy: CapitalStrategy = "protect"
     starting_portfolio_eur: float
     on_trajectory: bool = True
+    account_ids: list[str] = Field(default_factory=list)
+
+    @field_validator("account_ids", mode="before")
+    @classmethod
+    def normalize_account_ids(cls, value: object) -> list[str]:
+        if value is None:
+            return []
+        if isinstance(value, list):
+            return [str(item) for item in value]
+        return []
 
 
 class FireScenarioCreate(FireScenarioBase):
@@ -200,6 +210,7 @@ class FireScenarioUpdate(BaseModel):
     capital_strategy: Optional[CapitalStrategy] = None
     starting_portfolio_eur: Optional[float] = None
     on_trajectory: Optional[bool] = None
+    account_ids: Optional[list[str]] = None
 
 
 class FireScenarioOut(FireScenarioBase):

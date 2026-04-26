@@ -385,6 +385,7 @@ export type WealthFireScenario = {
   capitalStrategy: "protect" | "deplete";
   startingPortfolioEur: number;
   onTrajectory: boolean;
+  accountIds: string[];
 };
 
 export function useWealthFireScenarios() {

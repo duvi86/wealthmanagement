@@ -173,6 +173,7 @@ class WealthFireScenario(Base):
     capital_strategy = Column(String, default="protect")  # protect | deplete
     starting_portfolio_eur = Column(Float, nullable=False)
     on_trajectory = Column(Boolean, default=True)
+    account_ids = Column(JSON, nullable=True, default=list)  # list[str]
 
 
 class WealthDecision(Base):

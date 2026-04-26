@@ -744,6 +744,7 @@ function mockCalc(w: WizardState, profile: { currentAge: number; expectedLifetim
     successRate,
     fireYear,
     projected,
+    portfolioAtTargetAge,
     fireTargetEur: requiredPortfolioAtTargetAge,
     altYearsToFire: altYearsToFireSim?.reached ? altYearsToFireSim.yearsToFire : Number.NaN,
     altFireYear: altYearsToFireSim?.reached ? altYearsToFireSim.year : Number.NaN,
@@ -880,6 +881,7 @@ function backendToFireScenario(s: WealthFireScenario): FireScenario {
     altRetirementYearGap: c.altRetirementYearGap,
     retirementAmountGap: c.retirementAmountGap,
     chartSeries: c.series,
+    accountIds: s.accountIds ?? [],
   };
 }
 
@@ -1111,6 +1113,7 @@ export default function WealthFireScenariosPage() {
       capitalStrategy: wizard.capitalStrategy,
       startingPortfolioEur: wizard.startingPortfolioEur,
       onTrajectory: true,
+      accountIds: Array.from(selectedAccountIds),
     };
 
     const onSuccess = () => {
@@ -1131,6 +1134,7 @@ export default function WealthFireScenariosPage() {
     const createPayload: WealthFireScenario = {
       id: `fs-${Date.now()}`,
       ...payload,
+      accountIds: Array.from(selectedAccountIds),
     };
     createFireScenario.mutate(createPayload, { onSuccess, onError });
   }
@@ -1138,7 +1142,8 @@ export default function WealthFireScenariosPage() {
   function editScenarioParameters(scenario: FireScenario) {
     setEditingScenarioId(scenario.id);
     setWizard(mapScenarioToWizard(scenario));
-    setHasTouchedAccountSelection(false);
+    setSelectedAccountIds(new Set(scenario.accountIds ?? []));
+    setHasTouchedAccountSelection((scenario.accountIds ?? []).length > 0);
     setIsReturnManuallyEdited(true);
     setWizardStep(1);
     setSelectedScenarios(new Set([-1.5, 1.5]));
@@ -1564,7 +1569,9 @@ export default function WealthFireScenariosPage() {
               <Slider label="Withdrawal rate %" min={2.5} max={5} step={0.1} value={wizard.withdrawalRatePct} onChange={(e) => setWizard((p) => ({ ...p, withdrawalRatePct: Number(e.target.value) }))} valueSuffix="%" />
               <div>
                 <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 6 }}>Potential withdrawal (EUR/yr)</label>
-                <div style={{ padding: "10px 12px", border: "1px solid var(--color-border-subtle)", borderRadius: 8, fontWeight: 600 }}>{formatMoney(Math.round(computed.fireTargetEur * (wizard.withdrawalRatePct / 100)))}</div>
+                <div style={{ padding: "10px 12px", border: "1px solid var(--color-border-subtle)", borderRadius: 8, fontWeight: 600 }}>
+                  {formatMoney(Math.round(computed.portfolioAtTargetAge * (wizard.withdrawalRatePct / 100)))}
+                </div>
               </div>
             </div>
 
