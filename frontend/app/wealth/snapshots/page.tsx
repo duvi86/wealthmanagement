@@ -22,15 +22,47 @@ import {
 } from "@/hooks/use-api";
 import { Skeleton } from "@/components/ui/loading";
 
-function byPeriod(period: string, data: NetWorthSnapshot[]): NetWorthSnapshot[] {
+function shiftDateByYears(value: string, years: number): string {
+  const [year, month, day] = value.split("-").map(Number);
+  return `${year - years}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function byPeriod(
+  period: string,
+  data: NetWorthSnapshot[],
+  customStart: string,
+  customEnd: string,
+): NetWorthSnapshot[] {
   const sorted = [...data].sort((a, b) => b.date.localeCompare(a.date));
-  if (period === "30d") return sorted.slice(0, 1);
-  if (period === "90d") return sorted.slice(0, 3);
-  if (period === "1y") return sorted.slice(0, 12);
-  if (period === "ytd") {
-    const currentYear = sorted[0]?.date.slice(0, 4);
-    return sorted.filter((item) => item.date.startsWith(currentYear));
+  const latestDate = sorted[0]?.date;
+
+  if (!latestDate) {
+    return sorted;
   }
+
+  if (period === "ytd") {
+    const startOfYear = `${latestDate.slice(0, 4)}-01-01`;
+    return sorted.filter((item) => item.date >= startOfYear && item.date <= latestDate);
+  }
+
+  if (period === "1y") {
+    const startDate = shiftDateByYears(latestDate, 1);
+    return sorted.filter((item) => item.date >= startDate && item.date <= latestDate);
+  }
+
+  if (period === "5y") {
+    const startDate = shiftDateByYears(latestDate, 5);
+    return sorted.filter((item) => item.date >= startDate && item.date <= latestDate);
+  }
+
+  if (period === "custom") {
+    return sorted.filter((item) => {
+      if (customStart && item.date < customStart) return false;
+      if (customEnd && item.date > customEnd) return false;
+      return true;
+    });
+  }
+
   return sorted;
 }
 
@@ -39,27 +71,13 @@ function toUtcDayStamp(value: string): number {
   return Date.UTC(year, (month ?? 1) - 1, day ?? 1);
 }
 
-function findClosestAvailableDate(targetDate: string, availableDates: string[]): string | null {
+function findLatestAvailableDateOnOrBefore(targetDate: string, availableDates: string[]): string | null {
   if (!targetDate || availableDates.length === 0) {
     return null;
   }
 
-  const targetStamp = toUtcDayStamp(targetDate);
-
-  return availableDates.reduce<string | null>((closest, candidate) => {
-    if (!closest) {
-      return candidate;
-    }
-
-    const candidateDistance = Math.abs(toUtcDayStamp(candidate) - targetStamp);
-    const closestDistance = Math.abs(toUtcDayStamp(closest) - targetStamp);
-
-    if (candidateDistance !== closestDistance) {
-      return candidateDistance < closestDistance ? candidate : closest;
-    }
-
-    return candidate > closest ? candidate : closest;
-  }, null);
+  const eligibleDates = availableDates.filter((candidate) => toUtcDayStamp(candidate) <= toUtcDayStamp(targetDate));
+  return eligibleDates.length > 0 ? eligibleDates[0] : null;
 }
 
 function DeleteIcon() {
@@ -87,28 +105,32 @@ export default function WealthSnapshotsPage() {
   const [openCompare, setOpenCompare] = useState(false);
   const [createDate, setCreateDate] = useState(today);
   const [createNote, setCreateNote] = useState("");
+  const [customStartDate, setCustomStartDate] = useState("");
+  const [customEndDate, setCustomEndDate] = useState("");
   const [leftId, setLeftId] = useState("");
   const [rightId, setRightId] = useState("");
 
-  const visible = useMemo(() => byPeriod(period, snapshots), [period, snapshots]);
+  const visible = useMemo(
+    () => byPeriod(period, snapshots, customStartDate, customEndDate),
+    [customEndDate, customStartDate, period, snapshots],
+  );
   const availableAccountDates = useMemo(
     () => Array.from(new Set(accounts.map((account) => account.updatedAt))).sort((a, b) => b.localeCompare(a)),
     [accounts],
   );
-  const availableAccountDateSet = useMemo(() => new Set(availableAccountDates), [availableAccountDates]);
   const latestAccountDate = availableAccountDates[0] ?? today;
-  const resolvedCreateDate = useMemo(() => {
-    if (!createDate || createDate > today) {
-      return createDate;
-    }
-    return findClosestAvailableDate(createDate, availableAccountDates) ?? createDate;
-  }, [availableAccountDates, createDate, today]);
+  const effectiveAccountDate = useMemo(
+    () => findLatestAvailableDateOnOrBefore(createDate, availableAccountDates),
+    [availableAccountDates, createDate],
+  );
   const createDateError = !createDate
     ? "Snapshot date is required."
     : createDate > today
       ? "Snapshot date cannot be in the future."
       : !availableAccountDates.length
         ? "No account values are available yet."
+        : !effectiveAccountDate
+          ? "No account values exist on or before the selected date."
         : undefined;
 
   const compareLeft = snapshots.find((item) => item.id === leftId);
@@ -122,7 +144,7 @@ export default function WealthSnapshotsPage() {
     }
 
     createSnapshotMutation.mutate({
-      date: resolvedCreateDate,
+      date: createDate,
       note: createNote || "Manual snapshot entry",
     });
     setOpenCreate(false);
@@ -158,21 +180,24 @@ export default function WealthSnapshotsPage() {
       <SurfaceCard>
         <div className="wealth-meta-row">
           <TemporalFilter
-            defaultPeriod="1y"
+            defaultPeriod="ytd"
             onPeriodChange={setPeriod}
+            onRangeChange={(start, end) => {
+              setCustomStartDate(start);
+              setCustomEndDate(end);
+            }}
             periods={[
-              { value: "30d", label: "Monthly" },
-              { value: "90d", label: "Quarter" },
-              { value: "1y", label: "Year" },
               { value: "ytd", label: "YTD" },
+              { value: "1y", label: "1 Year" },
+              { value: "5y", label: "5 Years" },
               { value: "custom", label: "Custom" },
             ]}
           />
           <div className="wealth-actions-row">
             <Button variant="secondary" onClick={() => setOpenCompare(true)}>
-              Compare Snapshots
+              Compare
             </Button>
-            <Button onClick={openCreateModal}>Create Snapshot</Button>
+            <Button onClick={openCreateModal}>Create</Button>
           </div>
         </div>
       </SurfaceCard>
@@ -256,18 +281,11 @@ export default function WealthSnapshotsPage() {
             value={createDate}
             error={createDateError}
             helpText={availableAccountDates.length
-              ? createDate && !availableAccountDateSet.has(createDate) && resolvedCreateDate !== createDate
-                ? `No exact values exist for ${createDate}. Using closest available date ${resolvedCreateDate}.`
-                : `Available account dates include ${availableAccountDates.join(", ")}.`
+              ? effectiveAccountDate && effectiveAccountDate !== createDate
+                ? `Snapshot will keep the selected date ${createDate} and use the latest account values available on or before ${effectiveAccountDate}.`
+                : `Snapshot values are tied to the selected snapshot date.`
               : "No account values are available yet."}
-            onChange={(e) => {
-              const nextDate = e.target.value;
-              if (!nextDate || nextDate > today) {
-                setCreateDate(nextDate);
-                return;
-              }
-              setCreateDate(findClosestAvailableDate(nextDate, availableAccountDates) ?? nextDate);
-            }}
+            onChange={(e) => setCreateDate(e.target.value)}
           />
           <FormInput label="Notes" value={createNote} onChange={(e) => setCreateNote(e.target.value)} placeholder="Optional comment" />
         </FormContainer>

@@ -82,6 +82,42 @@ async def test_create_snapshot(client: AsyncClient):
 
 
 @pytest.mark.anyio
+async def test_snapshots_refresh_when_accounts_change(client: AsyncClient):
+    snapshot_payload = {
+        "id": "s-refresh",
+        "date": "2026-04-10",
+        "note": "Should auto-refresh",
+    }
+    snapshot_resp = await client.post("/api/wealth/snapshots", json=snapshot_payload)
+    assert snapshot_resp.status_code == 201
+    original = snapshot_resp.json()
+
+    account_payload = {
+        "id": "a-refresh",
+        "owner_id": "p-99",
+        "owner_name": "Refresh User",
+        "account_name": "Refresh Account",
+        "institution": "Test Bank",
+        "type": "Cash",
+        "currency": "EUR",
+        "native_balance": 500.0,
+        "fx_to_eur": 1.0,
+        "expected_return_pct": 0.0,
+        "allocation_bucket": "Cash",
+        "updated_at": "2026-04-10",
+        "portfolio_lines": [],
+    }
+    account_resp = await client.post("/api/wealth/accounts", json=account_payload)
+    assert account_resp.status_code == 201
+
+    refreshed_resp = await client.get("/api/wealth/snapshots/s-refresh")
+    assert refreshed_resp.status_code == 200
+    refreshed = refreshed_resp.json()
+    assert refreshed["assets_eur"] == pytest.approx(original["assets_eur"] + 500.0)
+    assert refreshed["net_worth_eur"] == pytest.approx(original["net_worth_eur"] + 500.0)
+
+
+@pytest.mark.anyio
 async def test_create_snapshot_rejects_future_date(client: AsyncClient):
     resp = await client.post(
         "/api/wealth/snapshots",

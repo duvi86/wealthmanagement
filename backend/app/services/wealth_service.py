@@ -174,6 +174,58 @@ def _fetch_live_fx_to_eur(currency: str, date: str) -> float:
     raise ValueError(f"Unable to fetch live FX rate for currency '{currency}' on {date}: {last_error}")
 
 
+def _compute_snapshot_totals(db: Session, snapshot_date_str: str, allow_empty: bool = False) -> tuple[float, float, float]:
+    effective_inventory_date = (
+        db.query(WealthAccount.updated_at)
+        .filter(WealthAccount.updated_at <= snapshot_date_str)
+        .order_by(WealthAccount.updated_at.desc())
+        .first()
+    )
+    if not effective_inventory_date:
+        if allow_empty:
+            return 0.0, 0.0, 0.0
+        raise ValueError("No account values exist on or before the selected date.")
+
+    accounts = db.query(WealthAccount).filter(WealthAccount.updated_at == effective_inventory_date[0]).all()
+
+    assets_eur = 0.0
+    liabilities_eur = 0.0
+    for account in accounts:
+        if account.type == "Loan" and account.mortgage:
+            mtg = account.mortgage
+            balance = _compute_amortized_balance(
+                mtg.principal,
+                mtg.annual_rate_pct,
+                mtg.term_months,
+                mtg.start_date,
+                snapshot_date_str,
+            )
+            value_eur = -balance * account.fx_to_eur
+        else:
+            value_eur = account.native_balance * account.fx_to_eur
+
+        if account.type == "Loan" or value_eur < 0:
+            liabilities_eur += abs(value_eur)
+        else:
+            assets_eur += value_eur
+
+    return assets_eur - liabilities_eur, assets_eur, liabilities_eur
+
+
+def _refresh_saved_snapshots(db: Session) -> None:
+    snapshots = db.query(WealthSnapshot).all()
+    if not snapshots:
+        return
+
+    for snapshot in snapshots:
+        net_worth_eur, assets_eur, liabilities_eur = _compute_snapshot_totals(db, snapshot.date, allow_empty=True)
+        snapshot.net_worth_eur = net_worth_eur
+        snapshot.assets_eur = assets_eur
+        snapshot.liabilities_eur = liabilities_eur
+
+    db.commit()
+
+
 def import_accounts_from_csv(db: Session, content: bytes) -> AccountImportSummary:
     errors: list[AccountImportError] = []
 
@@ -582,6 +634,7 @@ def import_accounts_from_csv(db: Session, content: bytes) -> AccountImportSummar
                     mortgage_type=mortgage_payload["mortgage_type"],
                 ))
         db.commit()
+        _refresh_saved_snapshots(db)
     except Exception:
         db.rollback()
         return AccountImportSummary(
@@ -656,6 +709,7 @@ def create_account(db: Session, data: AccountCreate) -> WealthAccount:
         ))
 
     db.commit()
+    _refresh_saved_snapshots(db)
     db.refresh(account)
     return account
 
@@ -698,6 +752,7 @@ def update_account(db: Session, account_id: str, data: AccountUpdate) -> Optiona
         ))
 
     db.commit()
+    _refresh_saved_snapshots(db)
     db.refresh(account)
     return account
 
@@ -708,6 +763,7 @@ def delete_account(db: Session, account_id: str) -> bool:
         return False
     db.delete(account)
     db.commit()
+    _refresh_saved_snapshots(db)
     return True
 
 
@@ -717,6 +773,7 @@ def delete_all_accounts(db: Session) -> int:
     for account in accounts:
         db.delete(account)
     db.commit()
+    _refresh_saved_snapshots(db)
     return count
 
 
@@ -739,43 +796,12 @@ def create_snapshot(db: Session, data: SnapshotCreate) -> WealthSnapshot:
     if snapshot_date > date.today():
         raise ValueError("Snapshot date cannot be in the future.")
 
-    effective_inventory_date = (
-        db.query(WealthAccount.updated_at)
-        .filter(WealthAccount.updated_at <= data.date)
-        .order_by(WealthAccount.updated_at.desc())
-        .first()
-    )
-    if not effective_inventory_date:
-        raise ValueError("No account values exist on or before the selected date.")
-
-    accounts = db.query(WealthAccount).filter(WealthAccount.updated_at == effective_inventory_date[0]).all()
-
-    assets_eur = 0.0
-    liabilities_eur = 0.0
-    for account in accounts:
-        # For Loan accounts with a mortgage, compute the amortized balance at the snapshot date
-        if account.type == "Loan" and account.mortgage:
-            mtg = account.mortgage
-            balance = _compute_amortized_balance(
-                mtg.principal,
-                mtg.annual_rate_pct,
-                mtg.term_months,
-                mtg.start_date,
-                data.date,
-            )
-            value_eur = -balance * account.fx_to_eur
-        else:
-            value_eur = account.native_balance * account.fx_to_eur
-
-        if account.type == "Loan" or value_eur < 0:
-            liabilities_eur += abs(value_eur)
-        else:
-            assets_eur += value_eur
+    net_worth_eur, assets_eur, liabilities_eur = _compute_snapshot_totals(db, data.date)
 
     snapshot = WealthSnapshot(
         id=data.id or _new_id("s-"),
         date=data.date,
-        net_worth_eur=assets_eur - liabilities_eur,
+        net_worth_eur=net_worth_eur,
         assets_eur=assets_eur,
         liabilities_eur=liabilities_eur,
         note=data.note,
