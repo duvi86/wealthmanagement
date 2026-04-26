@@ -78,7 +78,7 @@ export default function WealthDecisionsPage() {
   const createDecision = useCreateWealthDecision();
   const updateDecision = useUpdateWealthDecision();
   const deleteDecision = useDeleteWealthDecision();
-  const [period, setPeriod] = useState("1y");
+  const [period, setPeriod] = useState("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [authorFilter, setAuthorFilter] = useState<string>("all");
   const [query, setQuery] = useState("");
@@ -170,13 +170,13 @@ export default function WealthDecisionsPage() {
       <SurfaceCard>
         <div className="wealth-meta-row">
           <TemporalFilter
-            defaultPeriod="1y"
+            defaultPeriod="all"
             onPeriodChange={setPeriod}
             periods={[
               { value: "30d", label: "Monthly" },
               { value: "90d", label: "Quarter" },
               { value: "1y", label: "Year" },
-              { value: "ytd", label: "YTD" },
+              { value: "all", label: "All" },
             ]}
             showDateRange={false}
           />
@@ -272,37 +272,39 @@ export default function WealthDecisionsPage() {
         >
           <FormInput required label="Title" value={form.title} onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))} />
           <FormInput required label="Description" value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} />
-          <FormDropdown
-            label="Type"
-            value={form.type}
-            onChange={(e) => setForm((p) => ({ ...p, type: e.target.value as FinancialDecision["type"] }))}
-            options={[
-              { value: "Strategy", label: "Strategy" },
-              { value: "Purchase", label: "Purchase" },
-              { value: "Rebalance", label: "Rebalance" },
-              { value: "Investment", label: "Investment" },
-              { value: "Other", label: "Other" },
-            ]}
-          />
-          <FormDropdown
-            label="Author"
-            value={form.author}
-            onChange={(e) => setForm((p) => ({ ...p, author: e.target.value }))}
-            options={[
-              { value: "Sylvie", label: "Sylvie" },
-              { value: "Matthieu", label: "Matthieu" },
-            ]}
-          />
-          <FormDatepicker label="Decision date" value={form.date} onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))} />
-          <FormDropdown
-            label="Related scenario"
-            value={form.relatedScenario}
-            onChange={(e) => setForm((p) => ({ ...p, relatedScenario: e.target.value }))}
-            options={[
-              { value: "", label: "None" },
-              ...fireScenarios.map((s) => ({ value: s.id, label: s.name ?? s.id })),
-            ]}
-          />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--spacing-12)" }}>
+            <FormDropdown
+              label="Type"
+              value={form.type}
+              onChange={(e) => setForm((p) => ({ ...p, type: e.target.value as FinancialDecision["type"] }))}
+              options={[
+                { value: "Strategy", label: "Strategy" },
+                { value: "Purchase", label: "Purchase" },
+                { value: "Rebalance", label: "Rebalance" },
+                { value: "Investment", label: "Investment" },
+                { value: "Other", label: "Other" },
+              ]}
+            />
+            <FormDropdown
+              label="Author"
+              value={form.author}
+              onChange={(e) => setForm((p) => ({ ...p, author: e.target.value }))}
+              options={[
+                { value: "Sylvie", label: "Sylvie" },
+                { value: "Matthieu", label: "Matthieu" },
+              ]}
+            />
+            <FormDatepicker label="Decision date" value={form.date} onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))} />
+            <FormDropdown
+              label="Related scenario"
+              value={form.relatedScenario}
+              onChange={(e) => setForm((p) => ({ ...p, relatedScenario: e.target.value }))}
+              options={[
+                { value: "", label: "None" },
+                ...fireScenarios.map((s) => ({ value: s.id, label: s.name ?? s.id })),
+              ]}
+            />
+          </div>
         </FormContainer>
       </Modal>
       </>)}
