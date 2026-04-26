@@ -297,10 +297,13 @@ export default function WealthDashboardPage() {
       exposureByBucket.set(bucket, (exposureByBucket.get(bucket) ?? 0) + Number(item.amountEur));
     });
 
+    const totalPortfolioEur = allocationData.reduce((sum, item) => sum + Math.max(0, Number(item.amountEur)), 0);
+
     const rows = Array.from(exposureByBucket.entries()).map(([bucket, amountEur]) => ({
       bucket,
       amountEur,
       barColor: amountEur < 0 ? "var(--color-stroke-error)" : "var(--color-chart-series-1)",
+      pct: totalPortfolioEur > 0 ? ((Math.abs(amountEur) / totalPortfolioEur) * 100).toFixed(1) : "0.0",
       absExposure: Math.abs(amountEur),
     }));
 
@@ -417,7 +420,6 @@ export default function WealthDashboardPage() {
                   height="100%"
                   yLabel="EUR"
                   formatValue={(v) => formatMoney(v, "EUR")}
-                  showAmountInTooltip={false}
                 />
               </div>
             </SurfaceCard>
