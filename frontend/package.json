@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:unit": "vitest run",
+    "test:qa": "playwright test"
   },
   "dependencies": {
     "@azure/msal-browser": "^5.7.0",

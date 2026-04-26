@@ -18,6 +18,11 @@ from app.db import get_db
 from app.db.models import Base
 from app.db.seed import seed_sample_data
 from app.main import app
+from app.schemas.auth_dependencies import (
+    get_current_authorized_user,
+    get_current_user,
+    get_current_user_with_authorization_bootstrap,
+)
 
 TEST_DATABASE_URL = "sqlite:///./test_twinops.db"
 
@@ -55,6 +60,9 @@ async def client(db_session):
             pass
 
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_user] = lambda: "test-user"
+    app.dependency_overrides[get_current_authorized_user] = lambda: "test-user"
+    app.dependency_overrides[get_current_user_with_authorization_bootstrap] = lambda: "test-user"
 
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"

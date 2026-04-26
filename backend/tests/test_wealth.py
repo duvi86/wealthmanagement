@@ -35,8 +35,8 @@ async def test_get_account_not_found(client: AsyncClient):
 async def test_create_and_delete_account(client: AsyncClient):
     payload = {
         "id": "a-test",
-        "owner_id": "p-99",
-        "owner_name": "Test User",
+        "owner_id": "owner-matthieu-duvinage",
+        "owner_name": "Matthieu Duvinage",
         "account_name": "Test Account",
         "institution": "Test Bank",
         "type": "Cash",
@@ -94,8 +94,8 @@ async def test_snapshots_refresh_when_accounts_change(client: AsyncClient):
 
     account_payload = {
         "id": "a-refresh",
-        "owner_id": "p-99",
-        "owner_name": "Refresh User",
+        "owner_id": "owner-matthieu-duvinage",
+        "owner_name": "Matthieu Duvinage",
         "account_name": "Refresh Account",
         "institution": "Test Bank",
         "type": "Cash",
@@ -131,10 +131,10 @@ async def test_create_snapshot_rejects_future_date(client: AsyncClient):
 async def test_create_snapshot_requires_accounts_for_date(client: AsyncClient):
     resp = await client.post(
         "/api/wealth/snapshots",
-        json={"id": "s-missing", "date": "2026-04-11", "note": "No account values"},
+        json={"id": "s-missing", "date": "2020-01-01", "note": "No account values"},
     )
     assert resp.status_code == 400
-    assert resp.json()["detail"] == "No account values exist for the selected date."
+    assert resp.json()["detail"] == "No account values exist on or before the selected date."
 
 
 @pytest.mark.anyio

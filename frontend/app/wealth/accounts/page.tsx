@@ -542,8 +542,35 @@ function getLoanAccountBalanceForMonth(account: Account, monthKey: string) {
   return -Number(computedBalance.toFixed(2));
 }
 
+function normalizeSeriesKeyPart(value: string | undefined | null): string {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function getAccountOwnersSignature(account: Account): string {
+  const splitOwners = (account.ownershipSplit ?? [])
+    .filter((entry) => Number(entry.sharePct) > 0)
+    .map((entry) => normalizeSeriesKeyPart(entry.ownerId || entry.ownerName))
+    .filter(Boolean);
+
+  if (splitOwners.length > 0) {
+    return Array.from(new Set(splitOwners)).sort().join("+");
+  }
+
+  return [
+    normalizeSeriesKeyPart(account.ownerId || account.ownerName),
+    normalizeSeriesKeyPart(account.coOwnerId || account.coOwnerName),
+  ]
+    .filter(Boolean)
+    .sort()
+    .join("+");
+}
+
 function getAccountSeriesKey(account: Account) {
-  return [account.ownerId, account.accountName.trim().toLowerCase()].join("|");
+  return [
+    normalizeSeriesKeyPart(account.accountName),
+    normalizeSeriesKeyPart(account.institution),
+    getAccountOwnersSignature(account),
+  ].join("|");
 }
 
 function toBadgeTone(type: AccountType): "default" | "info" | "success" | "warning" | "error" {

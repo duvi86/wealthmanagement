@@ -186,7 +186,6 @@ export function LineChart({
           type="number"
           domain={[yMin, yMax]}
           ticks={ticks}
-          nice={false}
           allowDecimals={true}
           tickFormatter={yTickFormatter ?? formatCompactAxisValue}
           tick={{ fontSize: 12, fontFamily: "var(--font-regular)" }}
