@@ -60,6 +60,13 @@ function computeFireTargetEur(scenario: WealthFireScenario): number {
   return Math.round(expenseGapAtRetirement / safeWithdrawalRate);
 }
 
+function computeComparableFireTargetEur(scenario: WealthFireScenario, fullCurrentNetWorthEur: number): number {
+  const baseTarget = computeFireTargetEur(scenario);
+  // Dashboard trend uses full household net worth; add back scenario-excluded wealth for apples-to-apples comparison.
+  const excludedCurrentWealth = Math.max(0, fullCurrentNetWorthEur - scenario.startingPortfolioEur);
+  return Math.round(baseTarget + excludedCurrentWealth);
+}
+
 function shiftDateByYears(value: string, years: number): string {
   const [year, month, day] = value.split("-").map(Number);
   return `${year - years}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -236,9 +243,9 @@ export default function WealthDashboardPage() {
         dataKey: `fireScenarioTarget_${scenario.id}`,
         name: scenario.name,
         color: FIRE_TARGET_COLORS[index % FIRE_TARGET_COLORS.length],
-        targetEur: computeFireTargetEur(scenario),
+        targetEur: computeComparableFireTargetEur(scenario, totals.netWorth),
       })),
-    [fireScenarios],
+    [fireScenarios, totals.netWorth],
   );
   const trendWithTargets = useMemo(
     () =>
