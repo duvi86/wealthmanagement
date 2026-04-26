@@ -243,10 +243,12 @@ export function BarChart({
                 ? {
                     dataKey: "pct",
                     position: "top",
+                    offset: 14,
                     fill: "var(--color-text-default)",
                     fontSize: 11,
                     fontFamily: "var(--font-regular)",
-                    formatter: (value: unknown) => `${value ?? ""}%`,
+                    formatter: (value: unknown) =>
+                      value === undefined || value === null || value === "" ? "" : `${value}%`,
                   }
                 : false
             }
