@@ -197,8 +197,6 @@ export function BarChart({
   tooltipShowAllSeriesPercents,
   tooltipAllSeriesLabel,
 }: BarChartProps) {
-  const orderedDataKeys = series.map((item) => item.dataKey);
-
   return (
     <ResponsiveContainer width="100%" height={height}>
       <RechartsBarChart data={data} margin={{ top: 24, right: 16, left: 0, bottom: xLabel ? 24 : 8 }}>
@@ -241,51 +239,14 @@ export function BarChart({
             stackId={stacked ? "stack" : undefined}
             radius={stacked ? undefined : [3, 3, 0, 0]}
             label={
-              data.some((d) => d.pct)
+              data.some((d) => d.pct) && (!stacked || i === series.length - 1)
                 ? {
-                    content: (item: {
-                      payload?: Record<string, unknown>;
-                      x?: number | string;
-                      y?: number | string;
-                      width?: number | string;
-                    }) => {
-                      const payload = item.payload;
-                      if (!payload) return null;
-
-                      if (stacked) {
-                        const currentIndex = orderedDataKeys.indexOf(s.dataKey);
-                        const currentValue = Number(payload[s.dataKey] ?? 0);
-                        if (currentValue === 0 || !Number.isFinite(currentValue)) return null;
-                        const currentSign = Math.sign(currentValue);
-
-                        const hasLaterVisibleSegment = orderedDataKeys
-                          .slice(currentIndex + 1)
-                          .some((key) => {
-                            const v = Number(payload[key] ?? 0);
-                            return Number.isFinite(v) && v !== 0 && Math.sign(v) === currentSign;
-                          });
-
-                        if (hasLaterVisibleSegment) return null;
-                      }
-
-                      const pctValue = payload.pct;
-                      if (pctValue == null || pctValue === "") return null;
-
-                      const x = Number(item.x ?? 0) + Number(item.width ?? 0) / 2;
-                      const y = Number(item.y ?? 0) - 6;
-                      return (
-                        <text
-                          x={x}
-                          y={y}
-                          textAnchor="middle"
-                          fill="var(--color-text-default)"
-                          fontSize={11}
-                          fontFamily="var(--font-regular)"
-                        >
-                          {`${pctValue}%`}
-                        </text>
-                      );
-                    },
+                    dataKey: "pct",
+                    position: "top",
+                    fill: "var(--color-text-default)",
+                    fontSize: 11,
+                    fontFamily: "var(--font-regular)",
+                    formatter: (value: unknown) => `${value ?? ""}%`,
                   }
                 : false
             }
