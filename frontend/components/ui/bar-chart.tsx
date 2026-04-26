@@ -24,6 +24,7 @@ type BarChartProps = {
   yLabel?: string;
   formatValue?: (value: number) => string;
   yTickFormatter?: (value: number) => string;
+  showAmountInTooltip?: boolean;
 };
 
 const DEFAULT_COLORS = [
@@ -51,9 +52,10 @@ type CustomTooltipProps = {
   active?: boolean;
   payload?: Array<{ name: string; value: number; payload: Record<string, unknown> }>;
   formatValue?: (v: number) => string;
+  showAmount?: boolean;
 };
 
-function CustomTooltip({ active, payload, formatValue = String }: CustomTooltipProps) {
+function CustomTooltip({ active, payload, formatValue = String, showAmount = true }: CustomTooltipProps) {
   if (!active || !payload?.length) return null;
   const entry = payload[0];
   if (!entry) return null;
@@ -70,10 +72,12 @@ function CustomTooltip({ active, payload, formatValue = String }: CustomTooltipP
       }}
     >
       <p style={{ margin: "0 0 4px", fontFamily: "var(--font-bold)" }}>{entry.name}</p>
-      <p style={{ margin: "0 0 2px" }}>
-        <span style={{ color: "var(--color-text-subtle)" }}>Amount: </span>
-        {formatValue(entry.value)}
-      </p>
+      {showAmount ? (
+        <p style={{ margin: "0 0 2px" }}>
+          <span style={{ color: "var(--color-text-subtle)" }}>Amount: </span>
+          {formatValue(entry.value)}
+        </p>
+      ) : null}
       {pct && (
         <p style={{ margin: 0 }}>
           <span style={{ color: "var(--color-text-subtle)" }}>Share: </span>
@@ -95,6 +99,7 @@ export function BarChart({
   yLabel,
   formatValue = String,
   yTickFormatter,
+  showAmountInTooltip = true,
 }: BarChartProps) {
   return (
     <ResponsiveContainer width="100%" height={height}>
@@ -110,7 +115,7 @@ export function BarChart({
           tick={{ fontSize: 12, fontFamily: "var(--font-regular)" }}
           label={yLabel ? { value: yLabel, angle: -90, position: "insideLeft", fontSize: 12 } : undefined}
         />
-        <Tooltip content={<CustomTooltip formatValue={formatValue} />} />
+        <Tooltip content={<CustomTooltip formatValue={formatValue} showAmount={showAmountInTooltip} />} />
         {series.some((s) => s.name) && <Legend wrapperStyle={{ fontSize: 12, fontFamily: "var(--font-regular)" }} />}
         {series.map((s, i) => (
           <Bar

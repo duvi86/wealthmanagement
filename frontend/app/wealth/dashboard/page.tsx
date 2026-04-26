@@ -417,6 +417,7 @@ export default function WealthDashboardPage() {
                   height="100%"
                   yLabel="EUR"
                   formatValue={(v) => formatMoney(v, "EUR")}
+                  showAmountInTooltip={false}
                 />
               </div>
             </SurfaceCard>
