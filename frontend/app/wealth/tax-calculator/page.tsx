@@ -101,6 +101,7 @@ export default function TaxCalculatorPage() {
   const [isConfigApplied, setIsConfigApplied] = useState(false);
   const { data: taxConfig } = useWealthTaxCalculatorConfig();
   const computeTax = useComputeWealthTaxCalculator();
+  const { mutate: doComputeTax } = computeTax;
 
   useEffect(() => {
     if (!taxConfig || isConfigApplied) return;
@@ -136,8 +137,8 @@ export default function TaxCalculatorPage() {
 
   useEffect(() => {
     if (validationError) return;
-    computeTax.mutate(form);
-  }, [form, validationError, computeTax]);
+    doComputeTax(form);
+  }, [form, validationError, doComputeTax]);
 
   const singleResult = useMemo<TaxCalculationResult | null>(() => {
     if (validationError) return null;
@@ -371,6 +372,20 @@ export default function TaxCalculatorPage() {
             </SurfaceCard>
           ) : null}
 
+          {!validationError && computeTax.isPending ? (
+            <SurfaceCard>
+              <p className="wealth-muted" style={{ margin: 0 }}>Loading…</p>
+            </SurfaceCard>
+          ) : null}
+
+          {!validationError && computeTax.isError ? (
+            <SurfaceCard>
+              <p style={{ color: "var(--color-status-error)", margin: 0 }}>
+                Failed to compute tax data. Please check your inputs or try again.
+              </p>
+            </SurfaceCard>
+          ) : null}
+
           {!validationError && mode === "compare-countries" ? (
             <SurfaceCard>
               <div className="card-header">
@@ -446,6 +461,9 @@ export default function TaxCalculatorPage() {
               <div className="card-header">
                 <h3 style={{ margin: 0 }}>{`Scenario Comparison - ${form.country}`}</h3>
               </div>
+              {scenarioComparison.length === 0 && !computeTax.isPending ? (
+                <p className="wealth-muted" style={{ margin: 0 }}>No scenario data available.</p>
+              ) : null}
               <div className="data-table-root">
                 <div className="data-table-scroll">
                   <table className="data-table wealth-tax-table-compact">

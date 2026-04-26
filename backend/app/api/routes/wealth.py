@@ -33,6 +33,12 @@ router = APIRouter(
     dependencies=[Depends(get_current_authorized_user)],
 )
 
+# Public router for endpoints that do not require authentication
+public_router = APIRouter(
+    prefix="/wealth",
+    tags=["wealth"],
+)
+
 
 # ── Accounts ───────────────────────────────────────────────────────────────────
 
@@ -244,13 +250,13 @@ def delete_person_profile(
         raise HTTPException(status_code=404, detail="Person profile not found")
 
 
-# ── Investment Tax Calculator ────────────────────────────────────────────────
+# ── Investment Tax Calculator (public – no authentication required) ──────────
 
-@router.get("/tax-calculator/config", response_model=TaxCalculatorConfigOut)
+@public_router.get("/tax-calculator/config", response_model=TaxCalculatorConfigOut)
 def get_tax_calculator_config():
     return wealth_service.get_tax_calculator_config()
 
 
-@router.post("/tax-calculator/compute", response_model=TaxCalculatorComputeOut)
+@public_router.post("/tax-calculator/compute", response_model=TaxCalculatorComputeOut)
 def compute_tax_calculator(data: TaxCalculatorInput):
     return wealth_service.compute_tax_calculator(data)
