@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 AccountType = Literal["Cash", "Savings", "Investment", "Private Equity", "Property", "Loan", "Cryptocurrency"]
 AllocationBucket = Literal[
-    "Cash", "Savings", "Stocks", "Bonds", "REIT",
+    "Cash", "Savings", "Stocks", "Bonds", "REIT", "Loan",
     "Real Estate", "Commodities", "Crypto", "Private Equity",
 ]
 SupportedCurrency = Literal["EUR", "USD", "CHF"]

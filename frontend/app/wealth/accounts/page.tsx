@@ -1201,16 +1201,6 @@ export default function WealthAccountsPage() {
             >
               <ImportIcon />
             </Button>
-            <Button
-              type="button"
-              variant="icon"
-              className="wealth-compact-icon-button"
-              aria-label={sourceAccounts.length > 0 ? "Download full account registry CSV" : "Download CSV template"}
-              title={sourceAccounts.length > 0 ? "Download full account registry CSV" : "Download CSV template"}
-              onClick={handleDownloadTemplate}
-            >
-              <DownloadIcon />
-            </Button>
           </div>
           {importError ? (
             <p style={{ margin: 0, color: "var(--color-status-error)" }}>{importError}</p>
@@ -1258,6 +1248,16 @@ export default function WealthAccountsPage() {
               </Badge>
             ) : null}
             {fxSyncStatus === "error" ? <Badge tone="error">FX sync failed</Badge> : null}
+            <Button
+              type="button"
+              variant="icon"
+              className="wealth-compact-icon-button"
+              aria-label={sourceAccounts.length > 0 ? "Download full account registry CSV" : "Download CSV template"}
+              title={sourceAccounts.length > 0 ? "Download full account registry CSV" : "Download CSV template"}
+              onClick={handleDownloadTemplate}
+            >
+              <DownloadIcon />
+            </Button>
             <Button onClick={openCreateModal}>Add Account</Button>
             <button
               className="wealth-icon-btn wealth-icon-btn--accent"

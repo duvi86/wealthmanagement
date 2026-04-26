@@ -270,6 +270,7 @@ def import_accounts_from_csv(db: Session, content: bytes) -> AccountImportSummar
         "Stocks",
         "Bonds",
         "REIT",
+        "Loan",
         "Real Estate",
         "Commodities",
         "Crypto",

@@ -18,6 +18,7 @@ export type AllocationBucket =
   | "Stocks"
   | "Bonds"
   | "REIT"
+  | "Loan"
   | "Real Estate"
   | "Commodities"
   | "Crypto"
