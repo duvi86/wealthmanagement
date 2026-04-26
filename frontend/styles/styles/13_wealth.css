@@ -349,6 +349,50 @@
   gap: var(--spacing-12);
 }
 
+.wealth-tax-sidebar-card-compact {
+  gap: var(--spacing-10);
+}
+
+.wealth-tax-sidebar-card-compact .form-section {
+  gap: var(--spacing-8);
+}
+
+.wealth-tax-sidebar-card-compact .form-section-label {
+  font-size: 10px;
+  padding-bottom: var(--spacing-6);
+}
+
+.wealth-tax-sidebar-card-compact .form-field {
+  gap: 2px;
+}
+
+.wealth-tax-sidebar-card-compact .form-label {
+  font-size: 12px;
+}
+
+.wealth-tax-sidebar-card-compact .form-input,
+.wealth-tax-sidebar-card-compact .form-select {
+  min-height: 40px;
+  padding: 7px 10px;
+  font-size: 13px;
+}
+
+.wealth-tax-sidebar-card-compact .slider-field {
+  gap: 6px;
+}
+
+.wealth-tax-input-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--spacing-8);
+}
+
+@media (min-width: 760px) {
+  .wealth-tax-input-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 .wealth-tax-main-content {
   min-width: 0;
 }

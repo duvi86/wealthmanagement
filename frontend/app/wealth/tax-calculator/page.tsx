@@ -215,7 +215,7 @@ export default function TaxCalculatorPage() {
       <PageHeader title="Investment Tax Calculator" />
 
       <div className="wealth-tax-layout section-spacing">
-        <SurfaceCard className="wealth-tax-sidebar-card">
+        <SurfaceCard className="wealth-tax-sidebar-card wealth-tax-sidebar-card-compact">
           <div className="form-section">
             <p className="form-section-label">Country</p>
             <FormDropdown
@@ -228,66 +228,68 @@ export default function TaxCalculatorPage() {
 
           <div className="form-section">
             <p className="form-section-label">Portfolio Inputs</p>
-            <FormInput
-              type="number"
-              label="Portfolio Value"
-              value={form.portfolioValue}
-              onChange={(e) => setForm((prev) => ({ ...prev, portfolioValue: Number(e.target.value) }))}
-            />
-            <FormInput
-              type="number"
-              step="0.1"
-              min={0}
-              max={100}
-              label="Inflation Rate (%)"
-              value={form.inflationRatePct}
-              onChange={(e) => setForm((prev) => ({ ...prev, inflationRatePct: Number(e.target.value) }))}
-            />
-            <FormInput
-              type="number"
-              step="0.1"
-              min={0}
-              max={50}
-              label="Shares Annual Return (%)"
-              value={form.sharesReturnPct}
-              onChange={(e) => setForm((prev) => ({ ...prev, sharesReturnPct: Number(e.target.value) }))}
-            />
-            <FormInput
-              type="number"
-              step="0.1"
-              min={0}
-              max={50}
-              label="Bonds Annual Return (%)"
-              value={form.bondsReturnPct}
-              onChange={(e) => setForm((prev) => ({ ...prev, bondsReturnPct: Number(e.target.value) }))}
-            />
-            <FormInput
-              type="number"
-              step="0.1"
-              min={0}
-              max={20}
-              label="Dividend Yield (%)"
-              value={form.dividendYieldPct}
-              onChange={(e) => setForm((prev) => ({ ...prev, dividendYieldPct: Number(e.target.value) }))}
-            />
-            <FormInput
-              type="number"
-              step="1"
-              min={1}
-              max={10}
-              label="Number of Persons"
-              value={form.numPersons}
-              onChange={(e) => setForm((prev) => ({ ...prev, numPersons: Number(e.target.value) }))}
-            />
-            <FormInput
-              type="number"
-              step="0.01"
-              min={0}
-              max={10}
-              label="Belgium Wealth Tax (%)"
-              value={form.belgiumWealthTaxPct}
-              onChange={(e) => setForm((prev) => ({ ...prev, belgiumWealthTaxPct: Number(e.target.value) }))}
-            />
+            <div className="wealth-tax-input-grid">
+              <FormInput
+                type="number"
+                label="Portfolio Value"
+                value={form.portfolioValue}
+                onChange={(e) => setForm((prev) => ({ ...prev, portfolioValue: Number(e.target.value) }))}
+              />
+              <FormInput
+                type="number"
+                step="0.1"
+                min={0}
+                max={100}
+                label="Inflation Rate (%)"
+                value={form.inflationRatePct}
+                onChange={(e) => setForm((prev) => ({ ...prev, inflationRatePct: Number(e.target.value) }))}
+              />
+              <FormInput
+                type="number"
+                step="0.1"
+                min={0}
+                max={50}
+                label="Shares Annual Return (%)"
+                value={form.sharesReturnPct}
+                onChange={(e) => setForm((prev) => ({ ...prev, sharesReturnPct: Number(e.target.value) }))}
+              />
+              <FormInput
+                type="number"
+                step="0.1"
+                min={0}
+                max={50}
+                label="Bonds Annual Return (%)"
+                value={form.bondsReturnPct}
+                onChange={(e) => setForm((prev) => ({ ...prev, bondsReturnPct: Number(e.target.value) }))}
+              />
+              <FormInput
+                type="number"
+                step="0.1"
+                min={0}
+                max={20}
+                label="Dividend Yield (%)"
+                value={form.dividendYieldPct}
+                onChange={(e) => setForm((prev) => ({ ...prev, dividendYieldPct: Number(e.target.value) }))}
+              />
+              <FormInput
+                type="number"
+                step="1"
+                min={1}
+                max={10}
+                label="Number of Persons"
+                value={form.numPersons}
+                onChange={(e) => setForm((prev) => ({ ...prev, numPersons: Number(e.target.value) }))}
+              />
+              <FormInput
+                type="number"
+                step="0.01"
+                min={0}
+                max={10}
+                label="Belgium Wealth Tax (%)"
+                value={form.belgiumWealthTaxPct}
+                onChange={(e) => setForm((prev) => ({ ...prev, belgiumWealthTaxPct: Number(e.target.value) }))}
+              />
+            </div>
           </div>
 
           <div className="form-section">
