@@ -16,13 +16,49 @@ import {
   formatMoney,
   toEur,
   type MonthlyNetWorth,
-  withFireTargets,
+  wealthProfile,
   type Account,
 } from "@/lib/wealth-mock-data";
 import { Skeleton } from "@/components/ui/loading";
-import { useWealthAccounts } from "@/hooks/use-api";
+import { useWealthAccounts, useWealthFireScenarios, type WealthFireScenario } from "@/hooks/use-api";
 
 type TrendResolution = "monthly" | "quarterly" | "yearly";
+
+const FIRE_TARGET_COLORS = [
+  "var(--color-chart-series-6)",
+  "var(--color-chart-series-4)",
+  "var(--color-chart-series-7)",
+  "var(--color-chart-series-8)",
+  "var(--color-chart-series-9)",
+  "var(--color-chart-series-10)",
+];
+
+function getProfileAssumptions(scope: WealthFireScenario["profileScope"]) {
+  if (scope === "both") {
+    const avgAge =
+      wealthProfile.members.reduce((sum, member) => sum + member.currentAge, 0) /
+      Math.max(1, wealthProfile.members.length);
+    return { currentAge: avgAge };
+  }
+
+  const selected = wealthProfile.members.find((member) => member.id === scope) ?? wealthProfile.members[0];
+  return { currentAge: selected.currentAge };
+}
+
+function computeFireTargetEur(scenario: WealthFireScenario): number {
+  const profile = getProfileAssumptions(scenario.profileScope);
+  const baseYear = 2026;
+  const yearsToTargetAgeExact = Math.max(0, scenario.targetRetirementAge - profile.currentAge);
+  const targetRetirementYear = baseYear + Math.round(yearsToTargetAgeExact);
+  const yearsToTargetRetirementYear = Math.max(0, targetRetirementYear - baseYear);
+  const inflationToTarget = (1 + scenario.inflationPct / 100) ** yearsToTargetRetirementYear;
+  const expenseGapAtRetirement = Math.max(
+    0,
+    scenario.annualExpensesEur * inflationToTarget - scenario.postRetirementWorkIncomeEur * inflationToTarget,
+  );
+  const safeWithdrawalRate = Math.max(0.1, scenario.withdrawalRatePct) / 100;
+  return Math.round(expenseGapAtRetirement / safeWithdrawalRate);
+}
 
 function shiftDateByYears(value: string, years: number): string {
   const [year, month, day] = value.split("-").map(Number);
@@ -109,7 +145,9 @@ function aggregateTrendByResolution(
 
 export default function WealthDashboardPage() {
   const { data: rawAccounts = [], isLoading: accountsLoading, isError: accountsError } = useWealthAccounts();
+  const { data: rawFireScenarios = [] } = useWealthFireScenarios();
   const accounts = rawAccounts as Account[];
+  const fireScenarios = rawFireScenarios as WealthFireScenario[];
   const isLoading = accountsLoading;
   const isError = accountsError;
 
@@ -192,7 +230,29 @@ export default function WealthDashboardPage() {
     () => aggregateTrendByResolution(periodFilteredTrend, trendResolution),
     [periodFilteredTrend, trendResolution],
   );
-  const trendWithTargets = useMemo(() => withFireTargets(trendData), [trendData]);
+  const fireTargetSeries = useMemo(
+    () =>
+      fireScenarios.map((scenario, index) => ({
+        dataKey: `fireScenarioTarget_${scenario.id}`,
+        name: scenario.name,
+        color: FIRE_TARGET_COLORS[index % FIRE_TARGET_COLORS.length],
+        targetEur: computeFireTargetEur(scenario),
+      })),
+    [fireScenarios],
+  );
+  const trendWithTargets = useMemo(
+    () =>
+      trendData.map((point) => {
+        const row: Record<string, string | number> = {
+          ...point,
+        };
+        fireTargetSeries.forEach((series) => {
+          row[series.dataKey] = series.targetEur;
+        });
+        return row;
+      }),
+    [fireTargetSeries, trendData],
+  );
   const allocationData = useMemo(() => byAllocationBucket(latestDateAccounts), [latestDateAccounts]);
   const currencyData = useMemo(() => byCurrency(latestDateAccounts), [latestDateAccounts]);
   const liabilityData = useMemo(() => {
@@ -304,8 +364,11 @@ export default function WealthDashboardPage() {
                   yLabel="EUR"
                   series={[
                     { dataKey: "netWorthEur", name: "Net Worth" },
-                    { dataKey: "fireTargetBaseEur", name: "FIRE Target (Base)", color: "var(--color-chart-series-6)" },
-                    { dataKey: "fireTargetStretchEur", name: "FIRE Target (Stretch)", color: "var(--color-chart-series-4)" },
+                    ...fireTargetSeries.map((series) => ({
+                      dataKey: series.dataKey,
+                      name: series.name,
+                      color: series.color,
+                    })),
                   ]}
                   height="100%"
                 />

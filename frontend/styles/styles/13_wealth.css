@@ -64,21 +64,27 @@
 }
 
 .wealth-trend-controls {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(220px, 1fr));
-  gap: var(--spacing-8);
-  align-items: stretch;
-  width: min(640px, 100%);
+  display: flex;
+  gap: 0;
+  align-items: center;
+  justify-content: flex-end;
+  width: auto;
+  max-width: 100%;
 }
 
 .wealth-trend-control-group {
   display: flex;
   align-items: center;
+  flex: 0 0 auto;
   min-width: 0;
 }
 
+.wealth-trend-control-group + .wealth-trend-control-group {
+  margin-left: var(--spacing-8);
+}
+
 .wealth-trend-controls .temporal-filter--compact .period-selector {
-  width: 100%;
+  width: auto;
   min-height: 36px;
 }
 
@@ -94,6 +100,17 @@
 .wealth-trend-controls .temporal-filter--compact .date-range-input {
   min-width: 0;
   width: 100%;
+}
+
+@media (max-width: 1080px) {
+  .wealth-trend-controls {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .wealth-trend-control-group + .wealth-trend-control-group {
+    margin-left: 0;
+  }
 }
 
 .wealth-meta-row {
