@@ -1,6 +1,6 @@
 # Phase 8: Starter Kit Hardening
 
-Status: Defined and documented. Implementation may proceed incrementally.
+Status: Completed.
 
 ## Scope
 
@@ -57,3 +57,16 @@ Actions:
 
 - Hardening is about template quality, not feature growth.
 - Prefer small, safe refactors with CI verification per change set.
+
+## Implemented Hardening
+
+Completed in this phase:
+1. Resolved frontend lint warnings by removing raw `<img>` usage where flagged and stabilizing hook dependencies.
+2. Hardened auth/session state handling in `frontend/lib/auth-context.tsx` with stable callback wiring.
+3. Stabilized QA assertions to target shell containers and prevent false negatives from strict locator ambiguity.
+4. Preserved green quality gates for frontend lint/build, backend tests, and frontend unit/QA smoke tests.
+
+Validation snapshot:
+1. `npm run lint` passes with no warnings/errors.
+2. `npm run build -- --no-lint` passes.
+3. `./.venv/bin/python -m pytest -q` passes.

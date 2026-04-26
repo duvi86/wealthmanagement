@@ -137,7 +137,7 @@ export default function TaxCalculatorPage() {
   useEffect(() => {
     if (validationError) return;
     computeTax.mutate(form);
-  }, [form, validationError]);
+  }, [form, validationError, computeTax]);
 
   const singleResult = useMemo<TaxCalculationResult | null>(() => {
     if (validationError) return null;

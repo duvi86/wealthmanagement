@@ -1,6 +1,6 @@
 # Phase 7: QA and Quality Gate
 
-Status: Defined and documented. Implementation may proceed incrementally.
+Status: Completed.
 
 ## Scope
 
@@ -77,3 +77,23 @@ Checks:
 
 - Phase 7 builds on Phase 6 and should not weaken current gates.
 - Tests should stay deterministic and avoid brittle visual-only assertions.
+
+## Implemented Gate
+
+Implemented artifacts:
+- Unit test config: `frontend/vitest.config.ts`
+- QA browser test config: `frontend/playwright.config.ts`
+- Unit tests:
+	- `frontend/components/ui/button.test.tsx`
+	- `frontend/components/ui/tabs.test.tsx`
+	- `frontend/components/ui/modal.test.tsx`
+	- `frontend/components/ui/data-table.test.tsx`
+- Route/responsive smoke tests:
+	- `frontend/tests/qa/route-smoke.spec.ts`
+	- `frontend/tests/qa/responsive-a11y.spec.ts`
+- CI wiring: `.github/workflows/ci.yml` jobs `frontend-unit` and `frontend-qa`
+
+Validation snapshot:
+1. `npm run test:unit` passes.
+2. `npm run test:qa` passes.
+3. CI includes both frontend unit and QA smoke jobs.

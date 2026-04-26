@@ -412,6 +412,7 @@ def import_accounts_from_csv(db: Session, content: bytes) -> AccountImportSummar
                     message="File must be UTF-8 encoded CSV.",
                 )
             ],
+            created_profile_count=0,
         )
 
     reader = csv.DictReader(io.StringIO(csv_text))
@@ -427,6 +428,7 @@ def import_accounts_from_csv(db: Session, content: bytes) -> AccountImportSummar
                     message="CSV header row is missing.",
                 )
             ],
+            created_profile_count=0,
         )
 
     headers = [header.strip() for header in reader.fieldnames if header is not None]
@@ -463,9 +465,11 @@ def import_accounts_from_csv(db: Session, content: bytes) -> AccountImportSummar
             skipped_count=0,
             error_count=len(errors),
             errors=errors,
+            created_profile_count=0,
         )
 
     existing_accounts = db.query(WealthAccount).all()
+    existing_profiles = db.query(WealthPersonProfile).all()
     existing_keys = {
         (
             _normalize(account.owner_name),
@@ -479,9 +483,25 @@ def import_accounts_from_csv(db: Session, content: bytes) -> AccountImportSummar
     }
 
     owner_name_to_id: dict[str, str] = {}
-    used_owner_ids = {account.owner_id for account in existing_accounts}
+    profile_name_to_id = {
+        _normalize(profile.name): profile.id
+        for profile in existing_profiles
+    }
+    used_owner_ids = {
+        *(account.owner_id for account in existing_accounts),
+        *(account.co_owner_id for account in existing_accounts if account.co_owner_id),
+        *(profile.id for profile in existing_profiles),
+    }
+
+    for normalized_name, profile_id in profile_name_to_id.items():
+        owner_name_to_id[normalized_name] = profile_id
+
     for account in existing_accounts:
-        owner_name_to_id[_normalize(account.owner_name)] = account.owner_id
+        owner_name_to_id.setdefault(_normalize(account.owner_name), account.owner_id)
+        if account.co_owner_name and account.co_owner_id:
+            owner_name_to_id.setdefault(_normalize(account.co_owner_name), account.co_owner_id)
+
+    profiles_to_create: dict[str, str] = {}
 
     allowed_types = {"Cash", "Savings", "Investment", "Private Equity", "Property", "Loan", "Cryptocurrency"}
     allowed_currencies = {"EUR", "USD", "CHF"}
@@ -572,6 +592,17 @@ def import_accounts_from_csv(db: Session, content: bytes) -> AccountImportSummar
 
         owner_id = _derive_owner_id(owner_name, owner_name_to_id, used_owner_ids)
         co_owner_id = _derive_owner_id(co_owner_name_raw, owner_name_to_id, used_owner_ids) if co_owner_name_raw else None
+
+        normalized_owner_name = _normalize(owner_name)
+        if normalized_owner_name not in profile_name_to_id:
+            profiles_to_create[owner_id] = owner_name
+            profile_name_to_id[normalized_owner_name] = owner_id
+
+        if co_owner_name_raw:
+            normalized_co_owner_name = _normalize(co_owner_name_raw)
+            if normalized_co_owner_name not in profile_name_to_id and co_owner_id:
+                profiles_to_create[co_owner_id] = co_owner_name_raw
+                profile_name_to_id[normalized_co_owner_name] = co_owner_id
 
         # ── Mortgage auto-amortization ──────────────────────────────────────
         mortgage_principal_raw = (row.get("mortgage_principal") or "").strip()
@@ -784,9 +815,28 @@ def import_accounts_from_csv(db: Session, content: bytes) -> AccountImportSummar
             skipped_count=0,
             error_count=len(errors),
             errors=errors,
+            created_profile_count=0,
         )
 
     try:
+        if profiles_to_create:
+            now_iso = _utc_now_iso()
+            for profile_id, profile_name in profiles_to_create.items():
+                db.add(
+                    WealthPersonProfile(
+                        id=profile_id,
+                        owner_user_id=None,
+                        email=None,
+                        name=profile_name,
+                        birth_date=None,
+                        current_age=None,
+                        expected_lifetime=None,
+                        is_active=True,
+                        created_at=now_iso,
+                        updated_at=now_iso,
+                    )
+                )
+
         for row in rows_to_create:
             mortgage_payload = row.pop("_mortgage", None)
             is_latest = row.pop("_latest", False)
@@ -817,6 +867,7 @@ def import_accounts_from_csv(db: Session, content: bytes) -> AccountImportSummar
                     message="Failed to import accounts due to a database error.",
                 )
             ],
+            created_profile_count=0,
         )
 
     return AccountImportSummary(
@@ -824,6 +875,7 @@ def import_accounts_from_csv(db: Session, content: bytes) -> AccountImportSummar
         skipped_count=skipped_count,
         error_count=0,
         errors=[],
+        created_profile_count=len(profiles_to_create),
     )
 
 

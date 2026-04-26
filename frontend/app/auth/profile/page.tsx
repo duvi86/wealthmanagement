@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Image from "next/image";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
@@ -26,19 +27,7 @@ export default function ProfilePage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!isAuthenticated) {
-      router.push("/auth/login");
-      return;
-    }
-    if (!isAuthorized) {
-      router.push("/");
-      return;
-    }
-    fetchAuthorizedEmails();
-  }, [isAuthenticated, isAuthorized]);
-
-  const fetchAuthorizedEmails = async () => {
+  const fetchAuthorizedEmails = useCallback(async () => {
     try {
       setLoading(true);
       const data = await listAuthorizedEmails();
@@ -48,7 +37,19 @@ export default function ProfilePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.push("/auth/login");
+      return;
+    }
+    if (!isAuthorized) {
+      router.push("/");
+      return;
+    }
+    void fetchAuthorizedEmails();
+  }, [isAuthenticated, isAuthorized, router, fetchAuthorizedEmails]);
 
   const handleAddEmail = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,15 +101,13 @@ export default function ProfilePage() {
       <SurfaceCard style={{ marginBottom: "20px" }}>
         <div style={{ display: "flex", gap: "20px", alignItems: "flex-start" }}>
           {user.profile_picture_url ? (
-            <img
+            <Image
               src={user.profile_picture_url}
               alt={user.display_name || "Profile"}
-              style={{
-                width: "80px",
-                height: "80px",
-                borderRadius: "50%",
-                objectFit: "cover",
-              }}
+              width={80}
+              height={80}
+              unoptimized
+              style={{ borderRadius: "50%", objectFit: "cover" }}
             />
           ) : (
             <div

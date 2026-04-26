@@ -15,6 +15,7 @@ import { Modal } from "@/components/ui/modal";
 import { PageFrame, PageHeader } from "@/components/ui/page-frame";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import { Tabs } from "@/components/ui/tabs";
+import { Toast, ToastContainer } from "@/components/ui/toast";
 import {
   accountHistoryById,
   type Account,
@@ -59,12 +60,16 @@ const WEALTH_IMPORT_STATIC_COLUMNS = [
   "mortgage_type",
 ] as const;
 
+const WEALTH_IMPORT_TEMPLATE_DATE_COLUMNS = [
+  "2026-01-31",
+  "2026-02-28",
+  "2026-03-31",
+] as const;
+
 const WEALTH_IMPORT_TEMPLATE = [
   [
     ...WEALTH_IMPORT_STATIC_COLUMNS,
-    "2026-01-31",
-    "2026-02-28",
-    "2026-03-31",
+    ...WEALTH_IMPORT_TEMPLATE_DATE_COLUMNS,
   ].join(","),
   [
     "Matthieu Duvinage",
@@ -157,13 +162,16 @@ function buildAccountsRegistryCsv(accounts: Account[]): string {
       expectedReturnPct: number;
       allocationBucket: string;
       isMortgageLoan: boolean;
-      mortgage: WealthAccount["mortgage"] | MortgageDetails | null;
+      mortgage: MortgageDetails | null;
       balancesByDate: Map<string, string>;
     }
   >();
 
   const dateColumns = Array.from(
-    new Set(accounts.map((account) => account.updatedAt).filter((date): date is string => Boolean(date))),
+    new Set([
+      ...WEALTH_IMPORT_TEMPLATE_DATE_COLUMNS,
+      ...accounts.map((account) => account.updatedAt).filter((date): date is string => Boolean(date)),
+    ]),
   ).sort();
 
   accounts.forEach((account) => {
@@ -664,6 +672,7 @@ export default function WealthAccountsPage() {
     nativeBalance: "0",
     updatedAt: "2026-04-10",
   });
+  const [toasts, setToasts] = useState<Array<{ id: string; message: string; tone: "success" | "error" }>>([]);
 
   useEffect(() => {
     if (!ownerOptions.length) return;
@@ -1212,10 +1221,25 @@ export default function WealthAccountsPage() {
     try {
       const summary = await importAccountsCsv.mutateAsync(importFile);
       setImportResult(summary);
+
+      // Show toast with profile creation feedback
+      const profileMsg = summary.createdProfileCount > 0
+        ? `✓ Imported ${summary.createdCount} accounts and created ${summary.createdProfileCount} person profile${summary.createdProfileCount === 1 ? "" : "s"}.`
+        : `✓ Imported ${summary.createdCount} account${summary.createdCount === 1 ? "" : "s"}.`;
+      addToast(profileMsg, "success");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Import failed.";
       setImportError(message);
     }
+  }
+
+  function addToast(message: string, tone: "success" | "error") {
+    const id = `toast-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    setToasts((prev) => [...prev, { id, message, tone }]);
+  }
+
+  function dismissToast(id: string) {
+    setToasts((prev) => prev.filter((toast) => toast.id !== id));
   }
 
   function handleDownloadTemplate() {
@@ -2247,6 +2271,17 @@ export default function WealthAccountsPage() {
         </FormContainer>
       </Modal>
       </>)}
+      <ToastContainer>
+        {toasts.map((toast) => (
+          <Toast
+            key={toast.id}
+            message={toast.message}
+            tone={toast.tone}
+            autoDismissMs={5000}
+            onDismiss={() => dismissToast(toast.id)}
+          />
+        ))}
+      </ToastContainer>
     </PageFrame>
   );
 }

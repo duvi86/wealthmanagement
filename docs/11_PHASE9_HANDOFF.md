@@ -1,6 +1,6 @@
 # Phase 9: Final Handoff and Release Candidate
 
-Status: Defined and documented.
+Status: Completed.
 
 ## Scope
 
@@ -50,3 +50,18 @@ Potential post-handoff items:
 - Expanded E2E coverage and visual regression tooling.
 - Performance budgets and route-level profiling automation.
 - Optional dark theme expansion if product scope requires it.
+
+## Release Candidate Evidence
+
+Current evidence for sign-off:
+1. Frontend lint/build gates pass.
+2. Backend test suite passes.
+3. Frontend unit and QA smoke suites pass.
+4. CI workflow includes explicit unit and QA browser jobs.
+
+Reference files:
+- `.github/workflows/ci.yml`
+- `frontend/vitest.config.ts`
+- `frontend/playwright.config.ts`
+- `frontend/tests/qa/route-smoke.spec.ts`
+- `frontend/tests/qa/responsive-a11y.spec.ts`

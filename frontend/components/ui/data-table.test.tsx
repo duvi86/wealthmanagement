@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { createElement } from "react";
 import { DataTable } from "./data-table";
 
 type Row = { id: string; name: string; value: number };
@@ -15,14 +16,14 @@ describe("DataTable", () => {
     const user = userEvent.setup();
 
     render(
-      <DataTable
-        columns={[
+      createElement(DataTable, {
+        columns: [
           { key: "name", header: "Name" },
           { key: "value", header: "Value" },
-        ]}
-        data={rows}
-        pageSize={5}
-      />,
+        ],
+        data: rows,
+        pageSize: 5,
+      }),
     );
 
     expect(screen.getByText("Item 1")).toBeInTheDocument();

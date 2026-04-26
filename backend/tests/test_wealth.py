@@ -237,6 +237,32 @@ async def test_import_accounts_csv_success(client: AsyncClient):
 
 
 @pytest.mark.anyio
+async def test_import_accounts_csv_creates_person_profiles_from_owner_names(client: AsyncClient):
+    suffix = uuid4().hex[:8]
+    owner_name = f"Import Owner {suffix}"
+    co_owner_name = f"Import CoOwner {suffix}"
+    csv_payload = (
+        "owner_name,co_owner_name,account_name,institution,account_type,currency,expected_return_pct,allocation_bucket,2026-01-31\n"
+        f"{owner_name},{co_owner_name},Imported Profile Link {suffix},Interactive Brokers,Investment,USD,7.0,Stocks,100000\n"
+    )
+
+    import_resp = await client.post(
+        "/api/wealth/accounts/import",
+        files={"file": ("import_profiles.csv", csv_payload, "text/csv")},
+    )
+    assert import_resp.status_code == 200
+    import_body = import_resp.json()
+    assert import_body["error_count"] == 0
+    assert import_body["created_count"] == 1
+
+    people_resp = await client.get("/api/wealth/persons")
+    assert people_resp.status_code == 200
+    person_names = {person["name"] for person in people_resp.json()}
+    assert owner_name in person_names
+    assert co_owner_name in person_names
+
+
+@pytest.mark.anyio
 async def test_import_accounts_csv_missing_date_headers(client: AsyncClient):
     csv_payload = (
         "owner_name,account_name,institution,account_type,currency,expected_return_pct,allocation_bucket\n"

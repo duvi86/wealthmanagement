@@ -108,15 +108,13 @@ export function AppShell({ children }: { children: ReactNode }) {
               }}
             >
               {user.profile_picture_url ? (
-                <img
+                <Image
                   src={user.profile_picture_url}
                   alt="Profile"
-                  style={{
-                    width: "32px",
-                    height: "32px",
-                    borderRadius: "50%",
-                    objectFit: "cover",
-                  }}
+                  width={32}
+                  height={32}
+                  unoptimized
+                  style={{ borderRadius: "50%", objectFit: "cover" }}
                 />
               ) : (
                 "👤"

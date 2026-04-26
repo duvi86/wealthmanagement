@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { createElement } from "react";
 import { Tabs } from "./tabs";
 
 describe("Tabs", () => {
@@ -7,12 +8,12 @@ describe("Tabs", () => {
     const user = userEvent.setup();
 
     render(
-      <Tabs
-        items={[
-          { key: "a", label: "Alpha", content: <div>Alpha Content</div> },
-          { key: "b", label: "Beta", content: <div>Beta Content</div> },
-        ]}
-      />,
+      createElement(Tabs, {
+        items: [
+          { key: "a", label: "Alpha", content: createElement("div", null, "Alpha Content") },
+          { key: "b", label: "Beta", content: createElement("div", null, "Beta Content") },
+        ],
+      }),
     );
 
     expect(screen.getByRole("tab", { name: "Alpha" })).toHaveAttribute("aria-selected", "true");

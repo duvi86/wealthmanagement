@@ -311,6 +311,7 @@ export type WealthAccountImportSummary = {
   skippedCount: number;
   errorCount: number;
   errors: WealthAccountImportError[];
+  createdProfileCount: number;
 };
 
 export function useWealthAccounts() {

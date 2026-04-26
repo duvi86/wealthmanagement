@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { createElement } from "react";
 import { Modal } from "./modal";
 
 describe("Modal", () => {
@@ -8,9 +9,11 @@ describe("Modal", () => {
     const onClose = vi.fn();
 
     render(
-      <Modal open onClose={onClose} title="Edit Profile">
-        <div>Body</div>
-      </Modal>,
+      createElement(
+        Modal,
+        { open: true, onClose, title: "Edit Profile" },
+        createElement("div", null, "Body"),
+      ),
     );
 
     expect(screen.getByRole("heading", { name: "Edit Profile" })).toBeInTheDocument();

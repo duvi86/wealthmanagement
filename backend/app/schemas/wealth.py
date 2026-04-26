@@ -154,6 +154,7 @@ class AccountImportSummary(BaseModel):
     skipped_count: int
     error_count: int
     errors: list[AccountImportError] = []
+    created_profile_count: int = 0
 
 
 # ── Snapshot ───────────────────────────────────────────────────────────────────

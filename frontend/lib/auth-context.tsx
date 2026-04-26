@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from "react";
 import { ssoLoginWithGoogle, ssoLoginWithMicrosoft, ssoLogout, ssoMe } from "@/lib/sso-client";
 
 export interface User {
@@ -27,6 +27,14 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const DEMO_USER: User = {
+  id: "demo-user",
+  email: "demo@local",
+  display_name: "Demo User",
+  profile_picture_url: null,
+  is_authorized: true,
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -42,25 +50,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isDemoMode =
     !isGoogleConfigured && !isMicrosoftConfigured && process.env.NODE_ENV !== "production";
 
-  const demoUser: User = {
-    id: "demo-user",
-    email: "demo@local",
-    display_name: "Demo User",
-    profile_picture_url: null,
-    is_authorized: true,
-  };
-
-  // Restore session on mount
-  useEffect(() => {
-    restoreSession();
-  }, []);
-
-  const restoreSession = async () => {
+  const restoreSession = useCallback(async () => {
     try {
       setIsLoading(true);
 
       if (isDemoMode) {
-        setUser(demoUser);
+        setUser(DEMO_USER);
         return;
       }
 
@@ -72,14 +67,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [isDemoMode]);
+
+  // Restore session on mount
+  useEffect(() => {
+    void restoreSession();
+  }, [restoreSession]);
 
   const login = async (idToken: string) => {
     try {
       setIsLoading(true);
 
       if (isDemoMode) {
-        setUser(demoUser);
+        setUser(DEMO_USER);
         return;
       }
 
@@ -99,7 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(true);
 
       if (isDemoMode) {
-        setUser(demoUser);
+        setUser(DEMO_USER);
         return;
       }
 
