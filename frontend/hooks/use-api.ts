@@ -217,6 +217,8 @@ export type WealthAccount = {
   id: string;
   ownerId: string;
   ownerName: string;
+  coOwnerName?: string | null;
+  coOwnerId?: string | null;
   accountName: string;
   institution: string;
   type: "Cash" | "Savings" | "Investment" | "Private Equity" | "Property" | "Loan" | "Cryptocurrency";
@@ -291,6 +293,14 @@ export function useDeleteWealthAccount() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => apiClient.delete(`/api/wealth/accounts/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["wealth", "accounts"] }),
+  });
+}
+
+export function useDeleteAllWealthAccounts() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => apiClient.delete("/api/wealth/accounts"),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["wealth", "accounts"] }),
   });
 }

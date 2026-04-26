@@ -92,6 +92,8 @@ class WealthAccount(Base):
     id = Column(String, primary_key=True)
     owner_id = Column(String, nullable=False)
     owner_name = Column(String, nullable=False)
+    co_owner_name = Column(String, nullable=True)
+    co_owner_id = Column(String, nullable=True)
     account_name = Column(String, nullable=False)
     institution = Column(String, nullable=False)
     type = Column(String, nullable=False)  # Cash | Savings | Investment | Property | Loan | Cryptocurrency

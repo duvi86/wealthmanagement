@@ -33,6 +33,7 @@ import {
   useCreateWealthAccount,
   useUpdateWealthAccount,
   useDeleteWealthAccount,
+  useDeleteAllWealthAccounts,
   useImportWealthAccountsCsv,
   type WealthAccountImportSummary,
 } from "@/hooks/use-api";
@@ -498,6 +499,7 @@ export default function WealthAccountsPage() {
   const createAccount = useCreateWealthAccount();
   const updateAccount = useUpdateWealthAccount();
   const deleteAccount = useDeleteWealthAccount();
+  const deleteAllAccounts = useDeleteAllWealthAccounts();
   const importAccountsCsv = useImportWealthAccountsCsv();
   const [ownerFilter, setOwnerFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
@@ -506,6 +508,7 @@ export default function WealthAccountsPage() {
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
   const [updatingAccountId, setUpdatingAccountId] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isEraseAllOpen, setIsEraseAllOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importResult, setImportResult] = useState<WealthAccountImportSummary | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
@@ -1178,6 +1181,13 @@ export default function WealthAccountsPage() {
             ) : null}
             {fxSyncStatus === "error" ? <Badge tone="error">FX sync failed</Badge> : null}
             <Button onClick={openCreateModal}>Add Account</Button>
+            <button
+              className="wealth-icon-btn wealth-icon-btn--accent"
+              title="Erase all accounts"
+              onClick={() => setIsEraseAllOpen(true)}
+            >
+              <DeleteIcon />
+            </button>
           </div>
         </div>
         {fxSyncStatus === "error" && fxSyncError ? (
@@ -1224,6 +1234,32 @@ export default function WealthAccountsPage() {
           </>
         )}
       </SurfaceCard>
+
+      <Modal
+        open={isEraseAllOpen}
+        onClose={() => setIsEraseAllOpen(false)}
+        title="Erase All Accounts"
+        size="default"
+      >
+        <p style={{ margin: "0 0 20px" }}>
+          This will permanently delete <strong>all accounts</strong> from the registry. This action cannot be undone.
+        </p>
+        <div className="wealth-modal-actions">
+          <Button variant="secondary" onClick={() => setIsEraseAllOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            onClick={() => {
+              deleteAllAccounts.mutate(undefined, {
+                onSuccess: () => setIsEraseAllOpen(false),
+              });
+            }}
+          >
+            <DeleteIcon /> Erase All
+          </Button>
+        </div>
+      </Modal>
 
       <Modal
         open={isFormOpen}

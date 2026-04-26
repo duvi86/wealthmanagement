@@ -84,6 +84,8 @@ class MortgageOut(MortgageBase):
 class AccountBase(BaseModel):
     owner_id: str
     owner_name: str
+    co_owner_name: Optional[str] = None
+    co_owner_id: Optional[str] = None
     account_name: str
     institution: str
     type: AccountType
@@ -104,6 +106,8 @@ class AccountCreate(AccountBase):
 class AccountUpdate(BaseModel):
     owner_id: Optional[str] = None
     owner_name: Optional[str] = None
+    co_owner_name: Optional[str] = None
+    co_owner_id: Optional[str] = None
     account_name: Optional[str] = None
     institution: Optional[str] = None
     type: Optional[AccountType] = None

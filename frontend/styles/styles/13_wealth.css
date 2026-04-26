@@ -535,6 +535,34 @@
   display: block;
 }
 
+.wealth-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--color-stroke-primary);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-surface-primary);
+  cursor: pointer;
+  color: var(--color-text-primary);
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.wealth-icon-btn:hover {
+  background: var(--color-surface-secondary);
+}
+
+.wealth-icon-btn--accent {
+  color: var(--color-accent-primary);
+  border-color: var(--color-accent-primary);
+}
+
+.wealth-icon-btn--accent:hover {
+  background: color-mix(in srgb, var(--color-accent-primary) 10%, transparent);
+}
+
 .wealth-cutoff-separator {
   margin: var(--spacing-16) 0 var(--spacing-12);
   padding-top: var(--spacing-10);

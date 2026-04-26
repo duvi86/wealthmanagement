@@ -64,6 +64,11 @@ def update_account(account_id: str, data: AccountUpdate, db: Session = Depends(g
     return account
 
 
+@router.delete("/accounts", status_code=204)
+def delete_all_accounts(db: Session = Depends(get_db)):
+    wealth_service.delete_all_accounts(db)
+
+
 @router.delete("/accounts/{account_id}", status_code=204)
 def delete_account(account_id: str, db: Session = Depends(get_db)):
     if not wealth_service.delete_account(db, account_id):

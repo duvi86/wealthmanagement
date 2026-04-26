@@ -43,6 +43,20 @@ def _new_id(prefix: str = "") -> str:
 
 
 _DATE_COLUMN_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_DATE_COLUMN_MDY_PATTERN = re.compile(r"^(\d{1,2})/(\d{1,2})/(\d{2}|\d{4})$")
+
+
+def _normalise_date_header(header: str) -> str | None:
+    """Convert a header to YYYY-MM-DD. Returns None if not a date."""
+    if _DATE_COLUMN_PATTERN.match(header):
+        return header
+    m = _DATE_COLUMN_MDY_PATTERN.match(header)
+    if m:
+        month, day, year = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        if len(m.group(3)) == 2:
+            year += 2000 if year <= 30 else 1900
+        return f"{year:04d}-{month:02d}-{day:02d}"
+    return None
 _FRANKFURTER_DEV_ENDPOINT = "https://api.frankfurter.dev/v1/{date}?from={currency}&to=EUR"
 _FRANKFURTER_APP_ENDPOINT = "https://api.frankfurter.app/{date}?from={currency}&to=EUR"
 _FALLBACK_FX_RATES = {
@@ -165,13 +179,20 @@ def import_accounts_from_csv(db: Session, content: bytes) -> AccountImportSummar
             )
         )
 
-    date_columns = [header for header in headers if _DATE_COLUMN_PATTERN.match(header)]
+    # Build mapping from original header -> normalised YYYY-MM-DD
+    date_header_map: dict[str, str] = {}
+    for header in headers:
+        normalised = _normalise_date_header(header)
+        if normalised:
+            date_header_map[header] = normalised
+    date_columns = list(date_header_map.values())
+
     if not date_columns:
         errors.append(
             AccountImportError(
                 row=1,
                 column="header",
-                message="No date columns found. Use YYYY-MM-DD column names.",
+                message="No date columns found. Use YYYY-MM-DD or M/D/YY column names.",
             )
         )
 
@@ -246,6 +267,7 @@ def import_accounts_from_csv(db: Session, content: bytes) -> AccountImportSummar
         expected_return_raw = required("expected_return_pct")
         fx_to_eur_raw = (row.get("fx_to_eur") or "").strip()
         allocation_bucket_raw = (row.get("allocation_bucket") or "").strip()
+        co_owner_name_raw = (row.get("co_owner_name") or "").strip() or None
 
         if account_type and account_type not in allowed_types:
             errors.append(
@@ -287,9 +309,10 @@ def import_accounts_from_csv(db: Session, content: bytes) -> AccountImportSummar
             expected_return_pct = 0.0
 
         owner_id = _derive_owner_id(owner_name, owner_name_to_id, used_owner_ids)
+        co_owner_id = _derive_owner_id(co_owner_name_raw, owner_name_to_id, used_owner_ids) if co_owner_name_raw else None
 
-        for date_column in date_columns:
-            balance_raw = (row.get(date_column) or "").strip()
+        for orig_header, date_column in date_header_map.items():
+            balance_raw = (row.get(orig_header) or "").strip()
             if not balance_raw:
                 continue
 
@@ -355,6 +378,8 @@ def import_accounts_from_csv(db: Session, content: bytes) -> AccountImportSummar
                     "id": _new_id("a-"),
                     "owner_id": owner_id,
                     "owner_name": owner_name,
+                    "co_owner_name": co_owner_name_raw,
+                    "co_owner_id": co_owner_id,
                     "account_name": account_name,
                     "institution": institution,
                     "type": account_type,
@@ -506,6 +531,15 @@ def delete_account(db: Session, account_id: str) -> bool:
     db.delete(account)
     db.commit()
     return True
+
+
+def delete_all_accounts(db: Session) -> int:
+    accounts = db.query(WealthAccount).all()
+    count = len(accounts)
+    for account in accounts:
+        db.delete(account)
+    db.commit()
+    return count
 
 
 # ── Snapshots ──────────────────────────────────────────────────────────────────
