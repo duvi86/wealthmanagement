@@ -19,6 +19,7 @@ type TemporalFilterProps = {
   onPeriodChange?: (period: string) => void;
   onRangeChange?: (start: string, end: string) => void;
   showDateRange?: boolean;
+  compact?: boolean;
 };
 
 /**
@@ -31,6 +32,7 @@ export function TemporalFilter({
   onPeriodChange,
   onRangeChange,
   showDateRange = true,
+  compact = false,
 }: TemporalFilterProps) {
   const [period, setPeriod] = useState(defaultPeriod);
   const [startDate, setStartDate] = useState("");
@@ -48,7 +50,7 @@ export function TemporalFilter({
   }
 
   return (
-    <div className="temporal-filter">
+    <div className={`temporal-filter${compact ? " temporal-filter--compact" : ""}`}>
       <div className="period-selector" role="group" aria-label="Time period">
         {periods.map((p) => (
           <button

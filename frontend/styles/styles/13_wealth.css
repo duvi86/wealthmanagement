@@ -58,6 +58,44 @@
   font-size: 12px;
 }
 
+.wealth-trend-title {
+  margin: 0;
+  white-space: nowrap;
+}
+
+.wealth-trend-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: var(--spacing-8);
+  align-items: stretch;
+  width: min(640px, 100%);
+}
+
+.wealth-trend-control-group {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.wealth-trend-controls .temporal-filter--compact .period-selector {
+  width: 100%;
+  min-height: 36px;
+}
+
+.wealth-trend-controls .temporal-filter--compact .period-btn {
+  flex: 1;
+  min-width: 0;
+  min-height: 34px;
+  padding: 4px 10px;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.wealth-trend-controls .temporal-filter--compact .date-range-input {
+  min-width: 0;
+  width: 100%;
+}
+
 .wealth-meta-row {
   display: flex;
   flex-wrap: wrap;
@@ -620,6 +658,11 @@
 
   .wealth-chart-grid {
     grid-template-columns: 1fr;
+  }
+
+  .wealth-trend-controls {
+    grid-template-columns: 1fr;
+    width: 100%;
   }
 
   .wealth-card-controls {

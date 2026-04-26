@@ -62,3 +62,24 @@
   color: var(--color-text-subtle);
   font-size: 16px;
 }
+
+.temporal-filter--compact {
+  gap: var(--spacing-8);
+}
+
+.temporal-filter--compact .period-selector {
+  border-radius: var(--radius-sm, 6px);
+}
+
+.temporal-filter--compact .period-btn {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.temporal-filter--compact .date-range-row {
+  gap: var(--spacing-8);
+}
+
+.temporal-filter--compact .date-range-input {
+  min-width: 120px;
+}

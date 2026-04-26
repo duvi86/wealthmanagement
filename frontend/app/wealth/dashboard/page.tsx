@@ -3,28 +3,109 @@
 import { useMemo, useState } from "react";
 import { BarChart } from "@/components/ui/bar-chart";
 import { EmptyState } from "@/components/ui/empty-state";
-import { FormDropdown } from "@/components/ui/form-dropdown";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { LineChart } from "@/components/ui/line-chart";
 import { PageFrame, PageHeader } from "@/components/ui/page-frame";
 import { StatusPill } from "@/components/ui/status-pill";
 import { SurfaceCard } from "@/components/ui/surface-card";
+import { TemporalFilter } from "@/components/ui/temporal-filter";
 import {
-  availableYears,
-  buildNetWorthTrendData,
   byAllocationBucket,
   byCurrency,
   computeTotals,
   formatMoney,
   toEur,
   type MonthlyNetWorth,
-  type TrendGranularity,
-  type YearSelection,
   withFireTargets,
   type Account,
 } from "@/lib/wealth-mock-data";
 import { Skeleton } from "@/components/ui/loading";
 import { useWealthAccounts } from "@/hooks/use-api";
+
+type TrendResolution = "monthly" | "quarterly" | "yearly";
+
+function shiftDateByYears(value: string, years: number): string {
+  const [year, month, day] = value.split("-").map(Number);
+  return `${year - years}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function filterTrendByPeriod(
+  period: string,
+  history: MonthlyNetWorth[],
+  customStart: string,
+  customEnd: string,
+): Array<{ period: string; netWorthEur: number }> {
+  const sorted = [...history].sort((a, b) => a.month.localeCompare(b.month));
+  const latestDate = sorted[sorted.length - 1]?.month;
+
+  if (!latestDate) {
+    return [];
+  }
+
+  const toTrend = (items: MonthlyNetWorth[]) =>
+    items.map((point) => ({ period: point.month, netWorthEur: point.netWorthEur }));
+
+  if (period === "ytd") {
+    const startOfYear = `${latestDate.slice(0, 4)}-01-01`;
+    return toTrend(sorted.filter((point) => point.month >= startOfYear && point.month <= latestDate));
+  }
+
+  if (period === "1y") {
+    const startDate = shiftDateByYears(latestDate, 1);
+    return toTrend(sorted.filter((point) => point.month >= startDate && point.month <= latestDate));
+  }
+
+  if (period === "5y") {
+    const startDate = shiftDateByYears(latestDate, 5);
+    return toTrend(sorted.filter((point) => point.month >= startDate && point.month <= latestDate));
+  }
+
+  if (period === "custom") {
+    return toTrend(
+      sorted.filter((point) => {
+        if (customStart && point.month < customStart) return false;
+        if (customEnd && point.month > customEnd) return false;
+        return true;
+      }),
+    );
+  }
+
+  return toTrend(sorted);
+}
+
+function aggregateTrendByResolution(
+  trend: Array<{ period: string; netWorthEur: number }>,
+  resolution: TrendResolution,
+): Array<{ period: string; netWorthEur: number }> {
+  if (resolution === "monthly") {
+    return trend;
+  }
+
+  const grouped = new Map<string, { period: string; netWorthEur: number }>();
+  trend.forEach((point) => {
+    const period = point.period;
+    const year = period.slice(0, 4);
+    const month = Number(period.slice(5, 7));
+
+    if (resolution === "quarterly") {
+      const quarter = Math.floor((month - 1) / 3) + 1;
+      const key = `${year}-Q${quarter}`;
+      const existing = grouped.get(key);
+      if (!existing || period > existing.period) {
+        grouped.set(key, { period: key, netWorthEur: point.netWorthEur });
+      }
+      return;
+    }
+
+    const key = year;
+    const existing = grouped.get(key);
+    if (!existing || period > existing.period) {
+      grouped.set(key, { period: key, netWorthEur: point.netWorthEur });
+    }
+  });
+
+  return Array.from(grouped.values()).sort((a, b) => a.period.localeCompare(b.period));
+}
 
 export default function WealthDashboardPage() {
   const { data: rawAccounts = [], isLoading: accountsLoading, isError: accountsError } = useWealthAccounts();
@@ -59,10 +140,10 @@ export default function WealthDashboardPage() {
     [accounts],
   );
 
-  const years = availableYears(monthlyNetWorthHistory);
-  const latestYear = years[years.length - 1] ?? new Date().getFullYear();
-  const [granularity, setGranularity] = useState<TrendGranularity>("monthly");
-  const [selectedYear, setSelectedYear] = useState<YearSelection>(latestYear);
+  const [trendPeriod, setTrendPeriod] = useState("ytd");
+  const [trendResolution, setTrendResolution] = useState<TrendResolution>("monthly");
+  const [customStartDate, setCustomStartDate] = useState("");
+  const [customEndDate, setCustomEndDate] = useState("");
 
   const latestInventoryDate = useMemo(() => {
     const latest = accounts.reduce<{ key: string; ts: number } | null>((currentLatest, account) => {
@@ -85,7 +166,10 @@ export default function WealthDashboardPage() {
   );
   const totals = computeTotals(latestDateAccounts);
   const ytdWindow = useMemo(() => {
-    const yearPoints = monthlyNetWorthHistory.filter((point) => point.month.startsWith(`${latestYear}-`));
+    const latestYear = latestInventoryDate?.slice(0, 4);
+    const yearPoints = latestYear
+      ? monthlyNetWorthHistory.filter((point) => point.month.startsWith(`${latestYear}-`))
+      : [];
     if (yearPoints.length === 0) {
       return null;
     }
@@ -93,16 +177,20 @@ export default function WealthDashboardPage() {
       start: yearPoints[0],
       end: yearPoints[yearPoints.length - 1],
     };
-  }, [latestYear, monthlyNetWorthHistory]);
+  }, [latestInventoryDate, monthlyNetWorthHistory]);
   const ytdDelta = useMemo(() => {
     if (!ytdWindow) {
       return 0;
     }
     return ytdWindow.end.netWorthEur - ytdWindow.start.netWorthEur;
   }, [ytdWindow]);
+  const periodFilteredTrend = useMemo(
+    () => filterTrendByPeriod(trendPeriod, monthlyNetWorthHistory, customStartDate, customEndDate),
+    [customEndDate, customStartDate, trendPeriod, monthlyNetWorthHistory],
+  );
   const trendData = useMemo(
-    () => buildNetWorthTrendData(granularity, selectedYear, monthlyNetWorthHistory),
-    [granularity, selectedYear, monthlyNetWorthHistory],
+    () => aggregateTrendByResolution(periodFilteredTrend, trendResolution),
+    [periodFilteredTrend, trendResolution],
   );
   const trendWithTargets = useMemo(() => withFireTargets(trendData), [trendData]);
   const allocationData = useMemo(() => byAllocationBucket(latestDateAccounts), [latestDateAccounts]);
@@ -166,7 +254,7 @@ export default function WealthDashboardPage() {
                 <p className="wealth-kpi-subtle">
                   {ytdWindow
                     ? `Change from ${ytdWindow.start.month} to ${ytdWindow.end.month}`
-                    : `No inventory entries for ${latestYear}`}
+                    : "No inventory entries for current year"}
                 </p>
               }
             />
@@ -175,32 +263,38 @@ export default function WealthDashboardPage() {
           <section className="wealth-chart-grid" aria-label="Net worth and allocation charts">
             <SurfaceCard>
               <div className="card-header">
-                <h3 style={{ margin: 0 }}>Net Worth Trend</h3>
-                <div className="wealth-card-controls">
-                  <FormDropdown
-                    aria-label="Trend granularity"
-                    value={granularity}
-                    onChange={(e) => setGranularity(e.target.value as TrendGranularity)}
-                    options={[
-                      { value: "monthly", label: "Monthly" },
-                      { value: "quarterly", label: "Quarter" },
-                      { value: "yearly", label: "Year" },
-                      { value: "ytd", label: "YTD" },
-                    ]}
-                  />
-                  <FormDropdown
-                    aria-label="Trend year"
-                    value={String(selectedYear)}
-                    disabled={granularity === "ytd"}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setSelectedYear(value === "all" ? "all" : Number(value));
-                    }}
-                    options={[
-                      { value: "all", label: "All Years" },
-                      ...years.map((year) => ({ value: String(year), label: String(year) })),
-                    ]}
-                  />
+                <h3 className="wealth-trend-title">Net Worth Trend</h3>
+                <div className="wealth-trend-controls">
+                  <div className="wealth-trend-control-group">
+                    <TemporalFilter
+                      defaultPeriod="ytd"
+                      compact
+                      onPeriodChange={setTrendPeriod}
+                      onRangeChange={(start, end) => {
+                        setCustomStartDate(start);
+                        setCustomEndDate(end);
+                      }}
+                      periods={[
+                        { value: "ytd", label: "YTD" },
+                        { value: "1y", label: "1Y" },
+                        { value: "5y", label: "5Y" },
+                        { value: "all", label: "ALL" },
+                      ]}
+                    />
+                  </div>
+                  <div className="wealth-trend-control-group">
+                    <TemporalFilter
+                      defaultPeriod="monthly"
+                      compact
+                      showDateRange={false}
+                      onPeriodChange={(value) => setTrendResolution(value as TrendResolution)}
+                      periods={[
+                        { value: "monthly", label: "M" },
+                        { value: "quarterly", label: "Q" },
+                        { value: "yearly", label: "Y" },
+                      ]}
+                    />
+                  </div>
                 </div>
               </div>
               <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
