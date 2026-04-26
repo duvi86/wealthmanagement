@@ -230,7 +230,20 @@ export function BarChart({
           }
         />
         {series.some((s) => s.name) && <Legend wrapperStyle={{ fontSize: 12, fontFamily: "var(--font-regular)" }} />}
-        {series.map((s, i) => (
+        {series.map((s, i) => {
+          // For stacked charts, attach the top label to the last series that has
+          // positive values so it sits above the positive stack, not above a
+          // negative (e.g. Loan) segment that renders below zero.
+          let labelSeriesIdx = series.length - 1;
+          if (stacked) {
+            for (let j = series.length - 1; j >= 0; j--) {
+              if (data.some((d) => Number(d[series[j].dataKey] ?? 0) > 0)) {
+                labelSeriesIdx = j;
+                break;
+              }
+            }
+          }
+          return (
           <Bar
             key={s.dataKey}
             dataKey={s.dataKey}
@@ -239,11 +252,11 @@ export function BarChart({
             stackId={stacked ? "stack" : undefined}
             radius={stacked ? undefined : [3, 3, 0, 0]}
             label={
-              data.some((d) => d.pct) && (!stacked || i === series.length - 1)
+              data.some((d) => d.pct) && (!stacked || i === labelSeriesIdx)
                 ? {
                     dataKey: "pct",
                     position: "top",
-                    offset: 14,
+                    offset: 8,
                     fill: "var(--color-text-default)",
                     fontSize: 11,
                     fontFamily: "var(--font-regular)",
@@ -262,7 +275,8 @@ export function BarChart({
                 ))
               : null}
           </Bar>
-        ))}
+          );
+        })}
       </RechartsBarChart>
     </ResponsiveContainer>
   );
