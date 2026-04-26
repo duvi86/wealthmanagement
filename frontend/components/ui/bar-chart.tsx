@@ -24,6 +24,17 @@ type BarChartProps = {
   yLabel?: string;
   formatValue?: (value: number) => string;
   yTickFormatter?: (value: number) => string;
+  tooltipTotalKey?: string;
+  tooltipTotalLabel?: string;
+  tooltipTotalFormatter?: (value: number) => string;
+  tooltipPercentTotalKey?: string;
+  tooltipPercentLabel?: string;
+  tooltipPctLabel?: string;
+  tooltipTitleKey?: string;
+  tooltipSeriesLabel?: string;
+  tooltipShowAmount?: boolean;
+  tooltipShowAllSeriesPercents?: boolean;
+  tooltipAllSeriesLabel?: string;
 };
 
 const DEFAULT_COLORS = [
@@ -51,13 +62,60 @@ type CustomTooltipProps = {
   active?: boolean;
   payload?: Array<{ name: string; value: number; payload: Record<string, unknown> }>;
   formatValue?: (v: number) => string;
+  totalKey?: string;
+  totalLabel?: string;
+  totalFormatter?: (v: number) => string;
+  percentTotalKey?: string;
+  percentLabel?: string;
+  pctLabel?: string;
+  titleKey?: string;
+  seriesLabel?: string;
+  showAmount?: boolean;
+  showAllSeriesPercents?: boolean;
+  allSeriesLabel?: string;
 };
 
-function CustomTooltip({ active, payload, formatValue = String }: CustomTooltipProps) {
+function CustomTooltip({
+  active,
+  payload,
+  formatValue = String,
+  totalKey,
+  totalLabel = "Total",
+  totalFormatter = String,
+  percentTotalKey,
+  percentLabel = "Share",
+  pctLabel = "Share",
+  titleKey,
+  seriesLabel,
+  showAmount = true,
+  showAllSeriesPercents = false,
+  allSeriesLabel = "Class shares",
+}: CustomTooltipProps) {
   if (!active || !payload?.length) return null;
   const entry = payload[0];
   if (!entry) return null;
   const pct = (entry.payload.pct as string) || "";
+  const title = titleKey ? String(entry.payload[titleKey] ?? entry.name) : entry.name;
+  const totalRaw = totalKey ? entry.payload[totalKey] : undefined;
+  const totalValue = typeof totalRaw === "number" ? totalRaw : Number.NaN;
+  const hasTotal = Number.isFinite(totalValue);
+  const percentTotalRaw = percentTotalKey ? entry.payload[percentTotalKey] : undefined;
+  const percentTotal = typeof percentTotalRaw === "number" ? percentTotalRaw : Number.NaN;
+  const showAllSeries = showAllSeriesPercents && Number.isFinite(percentTotal) && Math.abs(percentTotal) > 0;
+  const allSeriesShares = showAllSeries
+    ? payload
+        .map((item) => {
+          const itemValue = Number(item.value);
+          return {
+            name: item.name,
+            pctValue: Number.isFinite(itemValue) ? (itemValue / percentTotal) * 100 : Number.NaN,
+          };
+        })
+        .filter((item) => Number.isFinite(item.pctValue))
+    : [];
+  const percentShare = Number.isFinite(percentTotal) && Math.abs(percentTotal) > 0
+    ? ((entry.value / percentTotal) * 100).toFixed(1)
+    : "";
   return (
     <div
       style={{
@@ -69,14 +127,46 @@ function CustomTooltip({ active, payload, formatValue = String }: CustomTooltipP
         fontSize: 13,
       }}
     >
-      <p style={{ margin: "0 0 4px", fontFamily: "var(--font-bold)" }}>{entry.name}</p>
-      <p style={{ margin: "0 0 2px" }}>
-        <span style={{ color: "var(--color-text-subtle)" }}>Amount: </span>
-        {formatValue(entry.value)}
-      </p>
+      <p style={{ margin: "0 0 4px", fontFamily: "var(--font-bold)" }}>{title}</p>
+      {seriesLabel ? (
+        <p style={{ margin: "0 0 2px" }}>
+          <span style={{ color: "var(--color-text-subtle)" }}>{seriesLabel}: </span>
+          {entry.name}
+        </p>
+      ) : null}
+      {showAmount ? (
+        <p style={{ margin: "0 0 2px" }}>
+          <span style={{ color: "var(--color-text-subtle)" }}>Amount: </span>
+          {formatValue(entry.value)}
+        </p>
+      ) : null}
+      {hasTotal ? (
+        <p style={{ margin: "0 0 2px" }}>
+          <span style={{ color: "var(--color-text-subtle)" }}>{totalLabel}: </span>
+          <strong>{totalFormatter(totalValue)}</strong>
+        </p>
+      ) : null}
+      {percentShare && !showAllSeries ? (
+        <p style={{ margin: "0 0 2px" }}>
+          <span style={{ color: "var(--color-text-subtle)" }}>{percentLabel}: </span>
+          <strong>{percentShare}%</strong>
+        </p>
+      ) : null}
+      {allSeriesShares.length > 0 ? (
+        <div style={{ margin: "0 0 2px" }}>
+          <p style={{ margin: "0 0 2px" }}>
+            <span style={{ color: "var(--color-text-subtle)" }}>{allSeriesLabel}: </span>
+          </p>
+          {allSeriesShares.map((item) => (
+            <p key={item.name} style={{ margin: "0 0 1px", paddingLeft: 8 }}>
+              {item.name}: <strong>{item.pctValue.toFixed(1)}%</strong>
+            </p>
+          ))}
+        </div>
+      ) : null}
       {pct && (
         <p style={{ margin: 0 }}>
-          <span style={{ color: "var(--color-text-subtle)" }}>Share: </span>
+          <span style={{ color: "var(--color-text-subtle)" }}>{pctLabel}: </span>
           <strong>{pct}%</strong>
         </p>
       )}
@@ -95,7 +185,20 @@ export function BarChart({
   yLabel,
   formatValue = String,
   yTickFormatter,
+  tooltipTotalKey,
+  tooltipTotalLabel,
+  tooltipTotalFormatter,
+  tooltipPercentTotalKey,
+  tooltipPercentLabel,
+  tooltipPctLabel,
+  tooltipTitleKey,
+  tooltipSeriesLabel,
+  tooltipShowAmount,
+  tooltipShowAllSeriesPercents,
+  tooltipAllSeriesLabel,
 }: BarChartProps) {
+  const orderedDataKeys = series.map((item) => item.dataKey);
+
   return (
     <ResponsiveContainer width="100%" height={height}>
       <RechartsBarChart data={data} margin={{ top: 24, right: 16, left: 0, bottom: xLabel ? 24 : 8 }}>
@@ -110,7 +213,24 @@ export function BarChart({
           tick={{ fontSize: 12, fontFamily: "var(--font-regular)" }}
           label={yLabel ? { value: yLabel, angle: -90, position: "insideLeft", fontSize: 12 } : undefined}
         />
-        <Tooltip content={<CustomTooltip formatValue={formatValue} />} />
+        <Tooltip
+          content={
+            <CustomTooltip
+              formatValue={formatValue}
+              totalKey={tooltipTotalKey}
+              totalLabel={tooltipTotalLabel}
+              totalFormatter={tooltipTotalFormatter}
+              percentTotalKey={tooltipPercentTotalKey}
+              percentLabel={tooltipPercentLabel}
+              pctLabel={tooltipPctLabel}
+              titleKey={tooltipTitleKey}
+              seriesLabel={tooltipSeriesLabel}
+              showAmount={tooltipShowAmount}
+              showAllSeriesPercents={tooltipShowAllSeriesPercents}
+              allSeriesLabel={tooltipAllSeriesLabel}
+            />
+          }
+        />
         {series.some((s) => s.name) && <Legend wrapperStyle={{ fontSize: 12, fontFamily: "var(--font-regular)" }} />}
         {series.map((s, i) => (
           <Bar
@@ -123,12 +243,49 @@ export function BarChart({
             label={
               data.some((d) => d.pct)
                 ? {
-                    dataKey: "pct",
-                    position: "top",
-                    fill: "var(--color-text-default)",
-                    fontSize: 11,
-                    fontFamily: "var(--font-regular)",
-                    formatter: (value: unknown) => `${value ?? ""}%`,
+                    content: (item: {
+                      payload?: Record<string, unknown>;
+                      x?: number | string;
+                      y?: number | string;
+                      width?: number | string;
+                    }) => {
+                      const payload = item.payload;
+                      if (!payload) return null;
+
+                      if (stacked) {
+                        const currentIndex = orderedDataKeys.indexOf(s.dataKey);
+                        const currentValue = Number(payload[s.dataKey] ?? 0);
+                        if (currentValue === 0 || !Number.isFinite(currentValue)) return null;
+                        const currentSign = Math.sign(currentValue);
+
+                        const hasLaterVisibleSegment = orderedDataKeys
+                          .slice(currentIndex + 1)
+                          .some((key) => {
+                            const v = Number(payload[key] ?? 0);
+                            return Number.isFinite(v) && v !== 0 && Math.sign(v) === currentSign;
+                          });
+
+                        if (hasLaterVisibleSegment) return null;
+                      }
+
+                      const pctValue = payload.pct;
+                      if (pctValue == null || pctValue === "") return null;
+
+                      const x = Number(item.x ?? 0) + Number(item.width ?? 0) / 2;
+                      const y = Number(item.y ?? 0) - 6;
+                      return (
+                        <text
+                          x={x}
+                          y={y}
+                          textAnchor="middle"
+                          fill="var(--color-text-default)"
+                          fontSize={11}
+                          fontFamily="var(--font-regular)"
+                        >
+                          {`${pctValue}%`}
+                        </text>
+                      );
+                    },
                   }
                 : false
             }

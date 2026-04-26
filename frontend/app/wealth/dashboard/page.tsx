@@ -310,6 +310,100 @@ export default function WealthDashboardPage() {
     rows.sort((a, b) => b.absExposure - a.absExposure);
     return rows;
   }, [allocationData, liabilityData]);
+  const ownerWealthByType = useMemo(() => {
+    const ownerTypeMap = new Map<string, Map<string, number>>();
+    const ownerTotals = new Map<string, number>();
+    const typeSet = new Set<string>();
+
+    latestDateAccounts.forEach((account) => {
+      const amountEur = toEur(account);
+      const accountType = String(account.type);
+      typeSet.add(accountType);
+
+      const splits =
+        account.ownershipSplit?.filter((entry) => Number(entry.sharePct) > 0) ?? [];
+      const primaryOwner = (account.ownerName || "Unknown").trim() || "Unknown";
+      const coOwner = (account.coOwnerName || "").trim();
+
+      const ownership =
+        splits.length > 0
+          ? (() => {
+              const totalSplit = splits.reduce((sum, entry) => sum + Number(entry.sharePct), 0);
+              return splits.map((entry) => ({
+                ownerName: (entry.ownerName || primaryOwner).trim() || "Unknown",
+                // Normalize split shares so legacy/non-100 data still allocates 100% of the account value.
+                sharePct: totalSplit > 0 ? (Number(entry.sharePct) / totalSplit) * 100 : 0,
+              }));
+            })()
+          : coOwner && coOwner !== primaryOwner
+            ? [
+                { ownerName: primaryOwner, sharePct: 50 },
+                { ownerName: coOwner, sharePct: 50 },
+              ]
+            : [{ ownerName: primaryOwner, sharePct: 100 }];
+
+      ownership.forEach((entry) => {
+        const owner = (entry.ownerName || "Unknown").trim() || "Unknown";
+        const ownerAmount = amountEur * (entry.sharePct / 100);
+
+        const byType = ownerTypeMap.get(owner) ?? new Map<string, number>();
+        byType.set(accountType, (byType.get(accountType) ?? 0) + ownerAmount);
+        ownerTypeMap.set(owner, byType);
+
+        ownerTotals.set(owner, (ownerTotals.get(owner) ?? 0) + ownerAmount);
+      });
+    });
+
+    const preferredOrder = [
+      "Cash",
+      "Savings",
+      "Investment",
+      "Private Equity",
+      "Property",
+      "Cryptocurrency",
+      "Loan",
+    ];
+    const types = Array.from(typeSet).sort((a, b) => {
+      const ia = preferredOrder.indexOf(a);
+      const ib = preferredOrder.indexOf(b);
+      if (ia === -1 && ib === -1) return a.localeCompare(b);
+      if (ia === -1) return 1;
+      if (ib === -1) return -1;
+      return ia - ib;
+    });
+
+    const totalWealthEur = Number(totals.netWorth);
+
+    const data = Array.from(ownerTypeMap.entries())
+      .map(([owner, byType]) => {
+        const total = ownerTotals.get(owner) ?? 0;
+        const totalAbs = Math.abs(total);
+        const row: Record<string, string | number> = {
+          owner,
+          ownerTotalEur: Math.round(total),
+          ownerTotalAbsEur: totalAbs,
+          absTotal: totalAbs,
+          pct:
+            Math.abs(totalWealthEur) > 0
+              ? ((total / totalWealthEur) * 100).toFixed(1)
+              : "0.0",
+        };
+        types.forEach((type) => {
+          row[type] = Math.round(byType.get(type) ?? 0);
+        });
+        return row;
+      })
+      .sort((a, b) => Number(b.absTotal) - Number(a.absTotal));
+
+    return {
+      data,
+      series: types.map((type) => ({
+        dataKey: type,
+        name: type,
+        ...(type === "Loan" ? { color: "var(--color-stroke-error)" } : {}),
+      })),
+    };
+  }, [latestDateAccounts, totals.netWorth]);
 
   return (
     <PageFrame>
@@ -425,7 +519,7 @@ export default function WealthDashboardPage() {
             </SurfaceCard>
           </section>
 
-          <section className="wealth-chart-grid" aria-label="Currency and liability exposure">
+          <section className="wealth-chart-grid" aria-label="Currency and owner wealth exposure">
             <SurfaceCard>
               <div className="card-header">
                 <h3 style={{ margin: 0 }}>Native Currency Exposure</h3>
@@ -443,16 +537,27 @@ export default function WealthDashboardPage() {
 
             <SurfaceCard>
               <div className="card-header">
-                <h3 style={{ margin: 0 }}>Liability Exposure</h3>
+                <h3 style={{ margin: 0 }}>Portfolio per Owner</h3>
               </div>
               <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
                 <BarChart
-                  data={liabilityData}
-                  xKey="category"
+                  data={ownerWealthByType.data}
+                  xKey="owner"
                   yLabel="EUR"
-                  series={[{ dataKey: "amountEur", name: "", color: "var(--color-stroke-error)" }]}
+                  series={ownerWealthByType.series}
+                  stacked
                   height="100%"
                   formatValue={(v) => formatMoney(v, "EUR")}
+                  tooltipTotalKey="ownerTotalEur"
+                  tooltipTotalLabel="Owner Total"
+                  tooltipTotalFormatter={(v) => formatMoney(v, "EUR")}
+                  tooltipPercentTotalKey="ownerTotalAbsEur"
+                  tooltipPercentLabel="Class share"
+                  tooltipPctLabel="Wealth share"
+                  tooltipTitleKey="owner"
+                  tooltipShowAmount={false}
+                  tooltipShowAllSeriesPercents
+                  tooltipAllSeriesLabel="Class shares"
                 />
               </div>
             </SurfaceCard>
