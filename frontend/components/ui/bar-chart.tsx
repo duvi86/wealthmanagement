@@ -4,6 +4,7 @@ import {
   Bar,
   BarChart as RechartsBarChart,
   CartesianGrid,
+  Cell,
   Legend,
   ResponsiveContainer,
   Tooltip,
@@ -11,7 +12,7 @@ import {
   YAxis,
 } from "recharts";
 
-type BarSeries = { dataKey: string; name?: string; color?: string };
+type BarSeries = { dataKey: string; name?: string; color?: string; colorKey?: string };
 
 type BarChartProps = {
   data: Record<string, unknown>[];
@@ -131,7 +132,16 @@ export function BarChart({
                   }
                 : false
             }
-          />
+          >
+            {s.colorKey
+              ? data.map((row, idx) => (
+                  <Cell
+                    key={`${s.dataKey}-cell-${idx}`}
+                    fill={String((row[s.colorKey as string] as string | undefined) ?? s.color ?? DEFAULT_COLORS[i % DEFAULT_COLORS.length])}
+                  />
+                ))
+              : null}
+          </Bar>
         ))}
       </RechartsBarChart>
     </ResponsiveContainer>

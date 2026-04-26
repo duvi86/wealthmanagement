@@ -271,8 +271,8 @@ export default function WealthDashboardPage() {
         return;
       }
 
-      const category = account.mortgage ? "Mortgage" : "Other";
-      byCategory.set(category, (byCategory.get(category) ?? 0) + Math.abs(amountEur));
+      const category = account.mortgage ? "Mortgages" : "Other";
+      byCategory.set(category, (byCategory.get(category) ?? 0) - Math.abs(amountEur));
     });
 
     if (byCategory.size === 0) {
@@ -284,6 +284,29 @@ export default function WealthDashboardPage() {
       amountEur: Math.round(amountEur),
     }));
   }, [latestDateAccounts]);
+  const allocationExposureData = useMemo(() => {
+    const exposureByBucket = new Map<string, number>();
+
+    allocationData.forEach((item) => {
+      const bucket = String(item.bucket);
+      exposureByBucket.set(bucket, (exposureByBucket.get(bucket) ?? 0) + Number(item.amountEur));
+    });
+
+    liabilityData.forEach((item) => {
+      const bucket = String(item.category);
+      exposureByBucket.set(bucket, (exposureByBucket.get(bucket) ?? 0) + Number(item.amountEur));
+    });
+
+    const rows = Array.from(exposureByBucket.entries()).map(([bucket, amountEur]) => ({
+      bucket,
+      amountEur,
+      barColor: amountEur < 0 ? "var(--color-stroke-error)" : "var(--color-chart-series-1)",
+      absExposure: Math.abs(amountEur),
+    }));
+
+    rows.sort((a, b) => b.absExposure - a.absExposure);
+    return rows;
+  }, [allocationData, liabilityData]);
 
   return (
     <PageFrame>
@@ -386,27 +409,16 @@ export default function WealthDashboardPage() {
               <div className="card-header">
                 <h3 style={{ margin: 0 }}>Allocation by Asset Class</h3>
               </div>
-              {(() => {
-                const total = allocationData.reduce((sum, d) => sum + (d.amountEur as number), 0);
-                const sortedData = [...allocationData]
-                  .sort((a, b) => (b.amountEur as number) - (a.amountEur as number))
-                  .map((d) => ({
-                    ...d,
-                    pct: total > 0 ? (((d.amountEur as number) / total) * 100).toFixed(1) : "0.0",
-                  }));
-                return (
-                  <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
-                    <BarChart
-                      data={sortedData}
-                      xKey="bucket"
-                      series={[{ dataKey: "amountEur", name: "" }]}
-                      height="100%"
-                      yLabel="EUR"
-                      formatValue={(v) => formatMoney(v, "EUR")}
-                    />
-                  </div>
-                );
-              })()}
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+                <BarChart
+                  data={allocationExposureData}
+                  xKey="bucket"
+                  series={[{ dataKey: "amountEur", name: "", colorKey: "barColor" }]}
+                  height="100%"
+                  yLabel="EUR"
+                  formatValue={(v) => formatMoney(v, "EUR")}
+                />
+              </div>
             </SurfaceCard>
           </section>
 
@@ -435,8 +447,9 @@ export default function WealthDashboardPage() {
                   data={liabilityData}
                   xKey="category"
                   yLabel="EUR"
-                  series={[{ dataKey: "amountEur", name: "" }]}
+                  series={[{ dataKey: "amountEur", name: "", color: "var(--color-stroke-error)" }]}
                   height="100%"
+                  formatValue={(v) => formatMoney(v, "EUR")}
                 />
               </div>
             </SurfaceCard>
