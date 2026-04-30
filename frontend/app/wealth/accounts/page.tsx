@@ -317,15 +317,33 @@ type AmortizationRow = {
   balance: number;
 };
 
+// Area and Market Type options
+type AreaOption = "Europe" | "Asia" | "North America" | "Latin America" | "Oceania";
+type MarketTypeOption = "Developed Market" | "Emerging Market";
+
 type PortfolioLineState = {
   id: string;
   label: string;
   allocationBucket: AllocationBucket;
+  area: AreaOption;
+  marketType: MarketTypeOption;
   currency: SupportedCurrency;
   nativeAmount: string;
   fxToEur: string;
   expectedReturnPct: string;
 };
+const AREA_OPTIONS: Array<{ value: AreaOption; label: string }> = [
+  { value: "Europe", label: "Europe" },
+  { value: "Asia", label: "Asia" },
+  { value: "North America", label: "North America" },
+  { value: "Latin America", label: "Latin America" },
+  { value: "Oceania", label: "Oceania" },
+];
+
+const MARKET_TYPE_OPTIONS: Array<{ value: MarketTypeOption; label: string }> = [
+  { value: "Developed Market", label: "Developed Market" },
+  { value: "Emerging Market", label: "Emerging Market" },
+];
 
 type AccountFormState = {
   ownerId: string;
@@ -425,6 +443,8 @@ function makeEmptyPortfolioLine(index = 0): PortfolioLineState {
     id: `portfolio-line-${Date.now()}-${index}`,
     label: "",
     allocationBucket: "Stocks",
+    area: "Europe",
+    marketType: "Developed Market",
     currency: "EUR",
     nativeAmount: "0",
     fxToEur: "1",
@@ -438,6 +458,8 @@ function buildPortfolioLinesForAccount(account?: Account): PortfolioLineState[] 
       id: line.id,
       label: line.label,
       allocationBucket: line.allocationBucket,
+      area: line.area || "Europe",
+      marketType: line.marketType || "Developed Market",
       currency: line.currency,
       nativeAmount: String(line.nativeAmount),
       fxToEur: String(line.fxToEur),
@@ -451,6 +473,8 @@ function buildPortfolioLinesForAccount(account?: Account): PortfolioLineState[] 
         id: `portfolio-line-${account.id}`,
         label: account.accountName,
         allocationBucket: account.allocationBucket ?? "Stocks",
+        area: "Europe",
+        marketType: "Developed Market",
         currency: account.currency,
         nativeAmount: String(account.nativeBalance),
         fxToEur: String(account.fxToEur),
@@ -1918,7 +1942,7 @@ export default function WealthAccountsPage() {
 
                 <div className="wealth-portfolio-lines">
                   {formState.portfolioLines.map((line, idx) => (
-                    <div key={line.id} className="wealth-portfolio-line-card">
+                    <div key={line.id} className="wealth-portfolio-line-card" style={{ marginBottom: 12, padding: 12 }}>
                       <div className="wealth-portfolio-line-header">
                         <span className="wealth-portfolio-line-num">{idx + 1}</span>
                         <FormInput
@@ -1937,44 +1961,36 @@ export default function WealthAccountsPage() {
                           ✕
                         </button>
                       </div>
-                      <div className="wealth-portfolio-line-fields">
-                        <FormDropdown
-                          required
-                          label="Asset class"
-                          value={line.allocationBucket}
-                          onChange={(e) => handlePortfolioLineChange(line.id, "allocationBucket", e.target.value)}
-                          options={PORTFOLIO_BUCKET_OPTIONS}
-                        />
+                      <div className="wealth-portfolio-line-fields" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
+                        <FormDropdown required label="Asset class" value={line.allocationBucket} onChange={(e) => handlePortfolioLineChange(line.id, "allocationBucket", e.target.value)} options={PORTFOLIO_BUCKET_OPTIONS} style={{ minWidth: 120 }} />
+                        <FormDropdown required label="Area" value={line.area} onChange={(e) => handlePortfolioLineChange(line.id, "area", e.target.value)} options={AREA_OPTIONS} style={{ minWidth: 110 }} />
+                        <FormDropdown required label="Market Type" value={line.marketType} onChange={(e) => handlePortfolioLineChange(line.id, "marketType", e.target.value)} options={MARKET_TYPE_OPTIONS} style={{ minWidth: 140 }} />
+                        <div />
                         <FormDropdown
                           required
                           label="Currency"
                           value={line.currency}
-                          onChange={(e) => handlePortfolioLineChange(line.id, "currency", e.target.value)}
+                          onChange={async (e) => {
+                            const newCurrency = e.target.value;
+                            handlePortfolioLineChange(line.id, "currency", newCurrency);
+                            // Fetch FX rate if not EUR
+                            let fx = "1";
+                            if (newCurrency !== "EUR") {
+                              try {
+                                fx = String(await fetchFxToEur(newCurrency));
+                              } catch (err) {
+                                // fallback to 1 if fetch fails
+                                fx = "1";
+                              }
+                            }
+                            handlePortfolioLineChange(line.id, "fxToEur", fx);
+                          }}
                           options={CURRENCY_OPTIONS}
+                          style={{ minWidth: 90 }}
                         />
-                        <FormInput
-                          required
-                          type="number"
-                          label="Amount"
-                          value={line.nativeAmount}
-                          onChange={(e) => handlePortfolioLineChange(line.id, "nativeAmount", e.target.value)}
-                        />
-                        <FormInput
-                          required
-                          type="number"
-                          step="0.1"
-                          label="Expected Return (%)"
-                          value={line.expectedReturnPct}
-                          onChange={(e) => handlePortfolioLineChange(line.id, "expectedReturnPct", e.target.value)}
-                        />
-                        <FormInput
-                          required
-                          type="number"
-                          step="0.0001"
-                          label="FX to EUR"
-                          value={line.fxToEur}
-                          onChange={(e) => handlePortfolioLineChange(line.id, "fxToEur", e.target.value)}
-                        />
+                        <FormInput required type="number" label="Amount" value={line.nativeAmount} onChange={(e) => handlePortfolioLineChange(line.id, "nativeAmount", e.target.value)} style={{ minWidth: 90 }} />
+                        <FormInput required type="number" step="0.1" label="Expected Return (%)" value={line.expectedReturnPct} onChange={(e) => handlePortfolioLineChange(line.id, "expectedReturnPct", e.target.value)} style={{ minWidth: 90 }} />
+                        <FormInput required type="number" step="0.0001" label="FX to EUR" value={line.fxToEur} onChange={(e) => handlePortfolioLineChange(line.id, "fxToEur", e.target.value)} style={{ minWidth: 90 }} />
                       </div>
                     </div>
                   ))}
