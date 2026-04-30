@@ -4,7 +4,7 @@ Status: Active.
 
 ## Purpose
 
-This document describes the end-to-end architecture of the TwinOps React + FastAPI template, including boundaries between frontend, backend, and design system layers.
+This document describes the end-to-end architecture of the WealthManagement React + FastAPI template, including boundaries between frontend, backend, and design system layers.
 
 ## System Topology
 

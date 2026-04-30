@@ -1,5 +1,5 @@
 # Phase 0 Deliverable
 
-- Sibling folder scaffolded: `twinops-react-fastapi-template`
+- Sibling folder scaffolded: `WealthManagement`
 - Frontend bootstrapped with Next.js minimal app
 - Backend bootstrapped with FastAPI health endpoint

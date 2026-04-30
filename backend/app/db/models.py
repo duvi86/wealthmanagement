@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM models for the TwinOps domain."""
+"""SQLAlchemy ORM models for the WealthManagement domain."""
 
 from sqlalchemy import JSON, Boolean, Column, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import DeclarativeBase, relationship

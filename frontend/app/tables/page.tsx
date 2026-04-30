@@ -30,7 +30,7 @@ type FormData = {
 };
 
 const INITIAL_PROJECTS: Project[] = [
-  { id: "1", name: "TwinOps Platform",    owner: "Alex",  status: "active",  priority: "high",   budget: "$250K", startDate: "2026-01-05" },
+  { id: "1", name: "WealthManagement Platform",    owner: "Alex",  status: "active",  priority: "high",   budget: "$250K", startDate: "2026-01-05" },
   { id: "2", name: "Data Lake v2",        owner: "Blair", status: "active",  priority: "medium", budget: "$180K", startDate: "2026-02-01" },
   { id: "3", name: "Identity Mgmt",       owner: "Casey", status: "closed",  priority: "high",   budget: "$120K", startDate: "2025-11-01" },
   { id: "4", name: "API Gateway",         owner: "Alex",  status: "active",  priority: "high",   budget: "$200K", startDate: "2026-01-15" },

@@ -1,4 +1,4 @@
-# TwinOps React + FastAPI Template
+# WealthManagement React + FastAPI Template
 
 A Git template for building enterprise portfolio-management UIs with the GSK design system, powered by a **Next.js App Router** frontend and a **FastAPI** backend, deployed as an Azure Web App via a pre-wired GitHub Actions CD pipeline.
 
@@ -251,7 +251,7 @@ Push secrets and variables to the `dev` GitHub Environment:
 ```bash
 # macOS / Linux / WSL
 OWNER="gsk-tech"
-REPO="twinops-react-fastapi-template"
+REPO="WealthManagement"
 ENV_NAME="dev"
 
 gh auth login
@@ -277,7 +277,7 @@ gh variable set AZURE_WEBAPP_NAME          --env "$ENV_NAME" --body "$AZURE_WEBA
 # PowerShell (Windows)
 gh auth login
 $OWNER    = "gsk-tech"
-$REPO     = "twinops-react-fastapi-template"
+$REPO     = "WealthManagement"
 $ENV_NAME = "dev"
 
 gh api --method PUT -H "Accept: application/vnd.github+json" `

@@ -1,4 +1,4 @@
-"""FastAPI entrypoint for the TwinOps template backend."""
+"""FastAPI entrypoint for the WealthManagement template backend."""
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import capacity, chatbot, config, dependencies, okr
 from app.events import startup_event
 
-app = FastAPI(title="TwinOps API", version="0.3.0")
+app = FastAPI(title="WealthManagement API", version="0.3.0")
 
 # During template development we allow broad CORS for local frontend calls.
 app.add_middleware(

@@ -22,8 +22,8 @@ type ProjectRow = {
 
 const IRIS_DATA: ProjectRow[] = [
   // Digital Backbone
-  { id: "1",  name: "TwinOps v1",    species: "Digital Backbone", sepalLength: 5.1, sepalWidth: 3.5, petalLength: 1.4, petalWidth: 0.2 },
-  { id: "2",  name: "TwinOps v2",    species: "Digital Backbone", sepalLength: 4.9, sepalWidth: 3.0, petalLength: 1.4, petalWidth: 0.2 },
+  { id: "1",  name: "WealthManagement v1",    species: "Digital Backbone", sepalLength: 5.1, sepalWidth: 3.5, petalLength: 1.4, petalWidth: 0.2 },
+  { id: "2",  name: "WealthManagement v2",    species: "Digital Backbone", sepalLength: 4.9, sepalWidth: 3.0, petalLength: 1.4, petalWidth: 0.2 },
   { id: "3",  name: "API Gateway",   species: "Digital Backbone", sepalLength: 4.7, sepalWidth: 3.2, petalLength: 1.3, petalWidth: 0.2 },
   { id: "4",  name: "Auth Service",  species: "Digital Backbone", sepalLength: 4.6, sepalWidth: 3.1, petalLength: 1.5, petalWidth: 0.2 },
   { id: "5",  name: "Event Bus",     species: "Digital Backbone", sepalLength: 5.0, sepalWidth: 3.6, petalLength: 1.4, petalWidth: 0.2 },

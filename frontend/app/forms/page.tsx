@@ -52,7 +52,7 @@ function ProjectForm() {
         </>
       }
     >
-      <FormInput label="Project name" placeholder="e.g. TwinOps v2" required />
+      <FormInput label="Project name" placeholder="e.g. WealthManagement v2" required />
       <FormDropdown label="Programme" options={PROGRAMS} placeholder="Select programme…" required />
       <FormDropdown label="Owner"     options={TEAM_MEMBERS} placeholder="Select owner…" required />
       <FormDropdown label="Status"    options={STATUS_OPTS} defaultValue="on-track" />

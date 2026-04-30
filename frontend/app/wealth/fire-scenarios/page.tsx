@@ -1603,6 +1603,9 @@ export default function WealthFireScenariosPage() {
                 <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 6 }}>Potential withdrawal (EUR/yr)</label>
                 <div style={{ padding: "10px 12px", border: "1px solid var(--color-border-subtle)", borderRadius: 8, fontWeight: 600 }}>
                   {formatMoney(Math.round(computed.portfolioAtTargetAge * (wizard.withdrawalRatePct / 100)))}
+                  <div style={{ marginTop: 6, fontSize: 12, fontWeight: 400, color: "var(--color-fg-muted)" }}>
+                    Based on projected portfolio at target age: {formatMoney(computed.portfolioAtTargetAge)}
+                  </div>
                 </div>
               </div>
             </div>

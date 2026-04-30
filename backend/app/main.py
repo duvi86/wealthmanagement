@@ -1,4 +1,4 @@
-"""FastAPI entrypoint for the TwinOps template backend."""
+"""FastAPI entrypoint for the WealthManagement template backend."""
 
 import os
 from pathlib import Path
@@ -38,7 +38,7 @@ def _resolve_cors_origins() -> list[str]:
 # Load backend/.env for local development; Azure App Settings still override at runtime.
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
-app = FastAPI(title="TwinOps API", version="0.3.0")
+app = FastAPI(title="WealthManagement API", version="0.3.0")
 
 # CORS configuration - allow credentials for HttpOnly cookies
 app.add_middleware(

@@ -20,7 +20,7 @@ def get_public_config() -> ConfigResponse:
     Returns:
         Typed config payload.
     """
-    database_url = os.getenv("DATABASE_URL", "sqlite:///./twinops_template.db")
+    database_url = os.getenv("DATABASE_URL", "sqlite:///./wealthmanagement.db")
     return ConfigResponse(
         app_settings=AppSettingsResponse(
             app_version="0.1.0",

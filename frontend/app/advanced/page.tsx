@@ -139,7 +139,7 @@ export default function AdvancedPage() {
             content: (
               <div className="stack">
                 {[
-                  { name: "TwinOps Platform",    rag: "green" as const, progress: 82, owner: "Alice" },
+                  { name: "WealthManagement Platform",    rag: "green" as const, progress: 82, owner: "Alice" },
                   { name: "Data Lake v2",         rag: "amber" as const, progress: 45, owner: "Bob" },
                   { name: "Identity Management",  rag: "red"   as const, progress: 18, owner: "Carol" },
                   { name: "API Gateway",          rag: "green" as const, progress: 67, owner: "Dave" },

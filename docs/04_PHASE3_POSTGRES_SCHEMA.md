@@ -14,7 +14,7 @@
 ```bash
 docker-compose up -d
 ```
-This starts a Postgres container at `postgresql://postgres:postgres@localhost:5432/twinops_template`.
+This starts a Postgres container at `postgresql://postgres:postgres@localhost:5432/wealthmanagement`.
 
 ### Option 2: Docker CLI
 ```bash
@@ -24,7 +24,7 @@ bash setup_postgres.sh
 ### Database URL
 The backend uses `DATABASE_URL` environment variable, defaulting to:
 ```
-postgresql://postgres:postgres@localhost:5432/twinops_template
+postgresql://postgres:postgres@localhost:5432/wealthmanagement
 ```
 
 ## Validation Run
@@ -42,7 +42,7 @@ postgresql://postgres:postgres@localhost:5432/twinops_template
    - pip install -r requirements.txt
 
 3. Verify table creation in Postgres:
-   - psql postgresql://postgres:postgres@localhost:5432/twinops_template
+   - psql postgresql://postgres:postgres@localhost:5432/wealthmanagement
    - \dt (should show objectives, key_results, initiatives, dependencies tables)
    - SELECT COUNT(*) FROM objectives; (should return 1)
    - SELECT COUNT(*) FROM key_results; (should return 1)

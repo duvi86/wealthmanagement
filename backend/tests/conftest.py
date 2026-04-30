@@ -24,7 +24,7 @@ from app.schemas.auth_dependencies import (
     get_current_user_with_authorization_bootstrap,
 )
 
-TEST_DATABASE_URL = "sqlite:///./test_twinops.db"
+TEST_DATABASE_URL = "sqlite:///./test_wealthmanagement.db"
 
 
 @pytest.fixture(scope="session")

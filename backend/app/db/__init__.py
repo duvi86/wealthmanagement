@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "sqlite:///./twinops_template.db",
+    "sqlite:///./wealthmanagement.db",
 )
 
 _ENGINE_KWARGS: dict[str, object] = {"echo": False}

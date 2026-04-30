@@ -51,7 +51,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* ── Top bar ───────────────────────────────────────────── */}
       <header className="top-bar">
         {/* Brand: logo + app name */}
-        <Link href="/" className="top-bar-brand" aria-label="TwinOps home">
+        <Link href="/" className="top-bar-brand" aria-label="WealthManagement home">
           <Image
             src="/gsk-logo.svg"
             alt="GSK"

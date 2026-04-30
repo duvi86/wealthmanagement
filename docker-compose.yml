@@ -3,11 +3,11 @@ version: '3.8'
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: twinops-postgres
+    container_name: wealthmanagement-postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: twinops_template
+      POSTGRES_DB: wealthmanagement
     ports:
       - "5432:5432"
     volumes:
@@ -22,9 +22,9 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: twinops-backend
+    container_name: wealthmanagement-backend
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/twinops_template
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/wealthmanagement
     ports:
       - "8000:8000"
     depends_on:
@@ -37,7 +37,7 @@ services:
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
-    container_name: twinops-frontend
+    container_name: wealthmanagement-frontend
     ports:
       - "3000:3000"
     depends_on:

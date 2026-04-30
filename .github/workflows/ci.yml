@@ -64,7 +64,7 @@ jobs:
         with:
           context: ./backend
           push: false
-          tags: twinops-backend:ci
+          tags: wealthmanagement-backend:ci
 
   # ── Frontend ─────────────────────────────────────────────────────────────────
   frontend-lint:
@@ -198,6 +198,6 @@ jobs:
         with:
           context: ./frontend
           push: false
-          tags: twinops-frontend:ci
+          tags: wealthmanagement-frontend:ci
           build-args: |
             NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
