@@ -840,13 +840,18 @@ function getLoanAccountBalanceForMonth(account: Account, monthKey: string) {
 }
 
 function normalizeSeriesKeyPart(value: string | undefined | null): string {
-  return (value ?? "").trim().toLowerCase();
+  return (value ?? "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
 }
 
 function getAccountOwnersSignature(account: Account): string {
   const splitOwners = (account.ownershipSplit ?? [])
     .filter((entry) => Number(entry.sharePct) > 0)
-    .map((entry) => normalizeSeriesKeyPart(entry.ownerId || entry.ownerName))
+    .map((entry) => normalizeSeriesKeyPart(entry.ownerName || entry.ownerId))
     .filter(Boolean);
 
   if (splitOwners.length > 0) {
@@ -854,8 +859,8 @@ function getAccountOwnersSignature(account: Account): string {
   }
 
   return [
-    normalizeSeriesKeyPart(account.ownerId || account.ownerName),
-    normalizeSeriesKeyPart(account.coOwnerId || account.coOwnerName),
+    normalizeSeriesKeyPart(account.ownerName || account.ownerId),
+    normalizeSeriesKeyPart(account.coOwnerName || account.coOwnerId),
   ]
     .filter(Boolean)
     .sort()
@@ -1039,9 +1044,7 @@ export default function WealthAccountsPage() {
         <div className="wealth-account-value">
           <strong>{formatMoney(toEur(row), "EUR")}</strong>
           <p className="wealth-muted">
-            {row.portfolioLines?.length
-              ? `${row.portfolioLines?.length} portfolio lines`
-              : formatMoney(row.nativeBalance as number, row.currency as string)}
+            {formatMoney(row.nativeBalance as number, row.currency as string)}
           </p>
         </div>
       ),
@@ -1705,11 +1708,36 @@ export default function WealthAccountsPage() {
               };
             });
 
+            // Detailed portfolio lines apply only to the most-recent snapshot.
+            // All older snapshots get a single aggregate line.
+            const latestAccount = eligibleAccounts.reduce((best, acc) =>
+              new Date(acc.updatedAt) >= new Date(best.updatedAt) ? acc : best,
+            eligibleAccounts[0]);
+
             for (const linkedAccount of eligibleAccounts) {
-              const portfolioLines = importedLineBlueprints.map((line, index) => ({
-                ...line,
-                id: `pl-import-${linkedAccount.id}-${Date.now()}-${index}`,
-              }));
+              let portfolioLines: typeof importedLineBlueprints;
+              if (linkedAccount.id === latestAccount.id) {
+                // Latest snapshot → full detail
+                portfolioLines = importedLineBlueprints.map((line, index) => ({
+                  ...line,
+                  id: `pl-import-${linkedAccount.id}-${Date.now()}-${index}`,
+                }));
+              } else {
+                // Older snapshot → single aggregate line using the account's own balance
+                const firstLine = importedLineBlueprints[0];
+                const aggNativeAmount = linkedAccount.nativeBalance;
+                portfolioLines = [{
+                  label: linkedAccount.accountName,
+                  allocationBucket: firstLine?.allocationBucket ?? "Stocks",
+                  area: firstLine?.area,
+                  marketType: firstLine?.marketType,
+                  currency: linkedAccount.currency,
+                  nativeAmount: Number.isFinite(aggNativeAmount) ? aggNativeAmount : 0,
+                  fxToEur: linkedAccount.fxToEur,
+                  expectedReturnPct: linkedAccount.expectedReturnPct,
+                  id: `pl-import-agg-${linkedAccount.id}-${Date.now()}`,
+                }];
+              }
               await updateAccount.mutateAsync({ id: linkedAccount.id, portfolioLines: portfolioLines as any });
               portfolioUpdatedCount += 1;
             }
