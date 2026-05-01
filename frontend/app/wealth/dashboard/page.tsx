@@ -311,7 +311,7 @@ export default function WealthDashboardPage() {
     };
 
     latestDateAccounts.forEach((account) => {
-      if (account.type !== "Investment" && account.type !== "Private Equity") {
+      if (account.type !== "Investment" && account.type !== "Private Equity" && account.type !== "Property") {
         return;
       }
 
@@ -599,7 +599,7 @@ export default function WealthDashboardPage() {
           <section className="wealth-chart-grid" aria-label="Currency and owner wealth exposure">
             <SurfaceCard>
               <div className="card-header">
-                <h3 style={{ margin: 0 }}>Investment & Private Equity Exposure by Currency</h3>
+                <h3 style={{ margin: 0 }}>Market Exposure by Currency</h3>
               </div>
               <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
                 <BarChart

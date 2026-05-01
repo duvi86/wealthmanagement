@@ -1043,9 +1043,11 @@ export default function WealthAccountsPage() {
       render: (_: unknown, row: Account) => (
         <div className="wealth-account-value">
           <strong>{formatMoney(toEur(row), "EUR")}</strong>
-          <p className="wealth-muted">
-            {formatMoney(row.nativeBalance as number, row.currency as string)}
-          </p>
+          {row.currency !== "EUR" && (
+            <p className="wealth-muted">
+              {formatMoney(row.nativeBalance as number, row.currency as string)}
+            </p>
+          )}
         </div>
       ),
     },
@@ -1308,10 +1310,34 @@ export default function WealthAccountsPage() {
     setIsFormOpen(true);
   }
 
-  function openEditModal(account: Account) {
+  async function openEditModal(account: Account) {
     setEditingAccountId(account.id);
-    setFormState(makeInitialForm(account, ownerOptions));
+    const initialForm = makeInitialForm(account, ownerOptions);
+    setFormState(initialForm);
     setIsFormOpen(true);
+
+    // Auto-refresh FX rate for non-EUR accounts
+    if (account.currency !== "EUR") {
+      try {
+        const liveRate = await fetchFxToEur(account.currency as SupportedCurrency);
+        const nextFx = String(Number(liveRate.toFixed(4)));
+        setLatestFxByCurrency((prev) => ({ ...prev, [account.currency]: liveRate }));
+        setFormState((prev) => ({ ...prev, fxToEur: nextFx }));
+        // Persist the updated FX rate so the table EUR value is immediately correct
+        if (Math.abs(liveRate - account.fxToEur) > 0.000001) {
+          const patch: Record<string, unknown> = { id: account.id, fxToEur: liveRate };
+          // Also update portfolio lines that share the same currency so toEur() reflects the new rate
+          if (account.portfolioLines?.length) {
+            patch.portfolioLines = account.portfolioLines.map((line) =>
+              line.currency === account.currency ? { ...line, fxToEur: liveRate } : line,
+            );
+          }
+          await updateAccount.mutateAsync(patch as any);
+        }
+      } catch {
+        // silently fall back to stored rate
+      }
+    }
   }
 
   function openCreatePersonModal() {
