@@ -1150,6 +1150,14 @@ export default function WealthAccountsPage() {
     return getAmortizedBalanceForMonth(amortizationSchedule, currentMonthKey, principal);
   }, [amortizationSchedule, currentMonthKey, formState.mortgage.principal, formState.type]);
 
+  const propertyAdjustedEur = useMemo(() => {
+    if (formState.type !== "Property") return null;
+    const nativeValue = Number(formState.nativeBalance || 0);
+    const fxValue = Number(formState.fxToEur || 0);
+    if (!Number.isFinite(nativeValue) || !Number.isFinite(fxValue)) return 0;
+    return nativeValue * fxValue;
+  }, [formState.type, formState.nativeBalance, formState.fxToEur]);
+
   const updateAmortizationSchedule = useMemo(() => {
     if (!updatingAccount?.mortgage || updatingAccount.type !== "Loan") return [];
     return computeAmortization(
@@ -2282,6 +2290,20 @@ export default function WealthAccountsPage() {
                                 currency: nextCurrency,
                                 fxToEur: String(Number(rate.toFixed(4))),
                               }));
+
+                              if (formState.type === "Property" && nextCurrency !== "EUR") {
+                                void fetchFxToEur(nextCurrency)
+                                  .then((liveRate) => {
+                                    const nextFx = String(Number(liveRate.toFixed(4)));
+                                    setLatestFxByCurrency((prev) => ({ ...prev, [nextCurrency]: liveRate }));
+                                    setFormState((prev) => (
+                                      prev.currency === nextCurrency
+                                        ? { ...prev, fxToEur: nextFx }
+                                        : prev
+                                    ));
+                                  })
+                                  .catch(() => undefined);
+                              }
                             }}
                             options={CURRENCY_OPTIONS}
                           />
@@ -2330,6 +2352,11 @@ export default function WealthAccountsPage() {
                             onChange={(e) => setFormState((prev) => ({ ...prev, updatedAt: e.target.value }))}
                           />
                         </div>
+                        {formState.type === "Property" && propertyAdjustedEur !== null && (
+                          <p className="wealth-muted" style={{ marginTop: 8, marginBottom: 0 }}>
+                            Live adjusted EUR value: <strong>{formatMoney(propertyAdjustedEur, "EUR")}</strong>
+                          </p>
+                        )}
                       </div>
 
                       {/* Mortgage */}

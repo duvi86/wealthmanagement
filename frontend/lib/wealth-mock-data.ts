@@ -329,6 +329,9 @@ export const accountHistoryById: Record<string, Array<{ month: string; balanceEu
 };
 
 export function toEur(account: Account): number {
+  if (account.type === "Property") {
+    return account.nativeBalance * account.fxToEur;
+  }
   if (account.portfolioLines?.length) {
     return account.portfolioLines.reduce((sum, line) => sum + line.nativeAmount * line.fxToEur, 0);
   }
