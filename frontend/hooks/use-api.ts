@@ -283,6 +283,8 @@ export type WealthAccount = {
     id: string;
     label: string;
     allocationBucket: string;
+    area?: string;
+    marketType?: string;
     currency: string;
     nativeAmount: number;
     fxToEur: number;

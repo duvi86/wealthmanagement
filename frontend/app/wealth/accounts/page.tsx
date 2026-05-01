@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import * as XLSX from "xlsx";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
@@ -60,58 +61,56 @@ const WEALTH_IMPORT_STATIC_COLUMNS = [
   "mortgage_type",
 ] as const;
 
+const WEALTH_WORKBOOK_ACCOUNTS_COLUMNS = [
+  "account_id",
+  ...WEALTH_IMPORT_STATIC_COLUMNS,
+] as const;
+
+const WEALTH_PORTFOLIO_LINES_COLUMNS = [
+  "account_id",
+  "label",
+  "allocation_bucket",
+  "area",
+  "market_type",
+  "currency",
+  "amount",
+  "expected_return_pct",
+] as const;
+
+const WEALTH_SHEET_ACCOUNTS = "Accounts";
+const WEALTH_SHEET_PORTFOLIO_LINES = "PortfolioLines";
+const WEALTH_SHEET_INSTRUCTIONS = "Instructions";
+
 const WEALTH_IMPORT_TEMPLATE_DATE_COLUMNS = [
   "2026-01-31",
   "2026-02-28",
   "2026-03-31",
 ] as const;
 
-const WEALTH_IMPORT_TEMPLATE = [
-  [
-    ...WEALTH_IMPORT_STATIC_COLUMNS,
-    ...WEALTH_IMPORT_TEMPLATE_DATE_COLUMNS,
-  ].join(","),
-  [
-    "Matthieu Duvinage",
-    "",
-    "Broker Portfolio",
-    "Interactive Brokers",
-    "Investment",
-    "USD",
-    "7.0",
-    "Stocks",
-    "", "", "", "", "",
-    "102000",
-    "104500",
-    "107300",
-  ].join(","),
-  [
-    "Sylvie Duvinage",
-    "",
-    "Main Checking",
-    "BNP Paribas",
-    "Cash",
-    "EUR",
-    "1.0",
-    "Cash",
-    "", "", "", "", "",
-    "14200",
-    "13890",
-    "14610",
-  ].join(","),
-  [
-    "Matthieu Duvinage",
-    "Sylvie Duvinage",
-    "Home Loan",
-    "BNP Paribas",
-    "Loan",
-    "EUR",
-    "0",
-    "",
-    "315000", "1.5", "300", "2016-01", "Fixed",
-    "", "", "",
-  ].join(","),
-].join("\n");
+type RegistryGroupedRow = {
+  ownerName: string;
+  coOwnerName: string;
+  accountName: string;
+  institution: string;
+  accountType: string;
+  currency: string;
+  expectedReturnPct: number;
+  allocationBucket: string;
+  isMortgageLoan: boolean;
+  mortgage: MortgageDetails | null;
+  balancesByDate: Map<string, string>;
+  latestAccount: Account;
+};
+
+type RegistrySnapshotRow = RegistryGroupedRow & {
+  accountId: string;
+  linkKey: string;
+};
+
+type RegistrySnapshot = {
+  dateColumns: string[];
+  rows: RegistrySnapshotRow[];
+};
 
 function toCsvCell(value: string | number | null | undefined): string {
   const text = value == null ? "" : String(value);
@@ -119,6 +118,91 @@ function toCsvCell(value: string | number | null | undefined): string {
     return text;
   }
   return `"${text.replace(/"/g, '""')}"`;
+}
+
+function normalizeMortgageStartDateForImport(value: unknown): string {
+  if (value == null) return "";
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const parsed = XLSX.SSF.parse_date_code(value);
+    if (parsed && parsed.y && parsed.m) {
+      return `${parsed.y}-${String(parsed.m).padStart(2, "0")}`;
+    }
+  }
+
+  const text = String(value).trim();
+  if (!text) return "";
+
+  if (/^\d{4}-\d{2}$/.test(text)) return text;
+
+  const isoLike = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (isoLike) {
+    const year = Number(isoLike[1]);
+    const month = Number(isoLike[2]);
+    if (month >= 1 && month <= 12) {
+      return `${year}-${String(month).padStart(2, "0")}`;
+    }
+  }
+
+  const usLike = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if (usLike) {
+    const month = Number(usLike[1]);
+    let year = Number(usLike[3]);
+    if (year < 100) {
+      year += year >= 70 ? 1900 : 2000;
+    }
+    if (month >= 1 && month <= 12) {
+      return `${year}-${String(month).padStart(2, "0")}`;
+    }
+  }
+
+  const parsedDate = new Date(text);
+  if (!Number.isNaN(parsedDate.getTime())) {
+    const year = parsedDate.getFullYear();
+    const month = parsedDate.getMonth() + 1;
+    return `${year}-${String(month).padStart(2, "0")}`;
+  }
+
+  return text;
+}
+
+function normalizeImportValue(value: string | undefined | null): string {
+  return (value ?? "").toString().trim().toLowerCase();
+}
+
+function buildImportLinkKey(input: {
+  ownerName: string;
+  coOwnerName?: string;
+  accountName: string;
+  institution: string;
+  accountType: string;
+  currency: string;
+  expectedReturnPct: string | number;
+  allocationBucket?: string;
+}): string {
+  return [
+    normalizeImportValue(input.ownerName),
+    normalizeImportValue(input.coOwnerName ?? ""),
+    normalizeImportValue(input.accountName),
+    normalizeImportValue(input.institution),
+    normalizeImportValue(input.accountType),
+    normalizeImportValue(input.currency),
+    normalizeImportValue(String(input.expectedReturnPct ?? "")),
+    normalizeImportValue(input.allocationBucket ?? ""),
+  ].join("\u0001");
+}
+
+function buildImportLinkKeyFromAccount(account: Account): string {
+  return buildImportLinkKey({
+    ownerName: account.ownerName,
+    coOwnerName: account.coOwnerName ?? "",
+    accountName: account.accountName,
+    institution: account.institution,
+    accountType: account.type,
+    currency: account.currency,
+    expectedReturnPct: account.expectedReturnPct,
+    allocationBucket: account.allocationBucket ?? "",
+  });
 }
 
 /**
@@ -145,26 +229,10 @@ function computeAmortizedBalance(
   return principal * (powN - powN2) / (powN - 1);
 }
 
-function buildAccountsRegistryCsv(accounts: Account[]): string {
-  if (accounts.length === 0) {
-    return WEALTH_IMPORT_TEMPLATE;
-  }
-
+function buildAccountsRegistrySnapshot(accounts: Account[]): RegistrySnapshot {
   const groupedRows = new Map<
     string,
-    {
-      ownerName: string;
-      coOwnerName: string;
-      accountName: string;
-      institution: string;
-      accountType: string;
-      currency: string;
-      expectedReturnPct: number;
-      allocationBucket: string;
-      isMortgageLoan: boolean;
-      mortgage: MortgageDetails | null;
-      balancesByDate: Map<string, string>;
-    }
+    RegistryGroupedRow
   >();
 
   const dateColumns = Array.from(
@@ -176,15 +244,7 @@ function buildAccountsRegistryCsv(accounts: Account[]): string {
 
   accounts.forEach((account) => {
     const allocationBucket = account.allocationBucket ?? "";
-    const rowKey = [
-      account.ownerName,
-      account.accountName,
-      account.institution,
-      account.type,
-      account.currency,
-      String(account.expectedReturnPct),
-      allocationBucket,
-    ].join("\u0001");
+    const rowKey = buildImportLinkKeyFromAccount(account);
 
     if (!groupedRows.has(rowKey)) {
       groupedRows.set(rowKey, {
@@ -199,6 +259,7 @@ function buildAccountsRegistryCsv(accounts: Account[]): string {
         isMortgageLoan: account.type === "Loan" && Boolean(account.mortgage),
         mortgage: account.mortgage ?? null,
         balancesByDate: new Map<string, string>(),
+        latestAccount: account,
       });
     }
 
@@ -208,13 +269,89 @@ function buildAccountsRegistryCsv(accounts: Account[]): string {
       grp.mortgage = account.mortgage;
       grp.isMortgageLoan = true;
     }
+    if (account.updatedAt > grp.latestAccount.updatedAt) {
+      grp.latestAccount = account;
+    }
     grp.balancesByDate.set(account.updatedAt, String(account.nativeBalance));
   });
 
-  const rows = [
-    [...WEALTH_IMPORT_STATIC_COLUMNS, ...dateColumns],
-    ...Array.from(groupedRows.values()).map((row) => {
-      const staticCells = [
+  const sortedRows = Array.from(groupedRows.entries())
+    .sort(([, a], [, b]) => {
+      const keyA = `${a.ownerName}|${a.accountName}|${a.institution}|${a.accountType}|${a.currency}`.toLowerCase();
+      const keyB = `${b.ownerName}|${b.accountName}|${b.institution}|${b.accountType}|${b.currency}`.toLowerCase();
+      return keyA.localeCompare(keyB);
+    })
+    .map(([linkKey, row], index) => ({
+      ...row,
+      accountId: `acc-${String(index + 1).padStart(3, "0")}`,
+      linkKey,
+    }));
+
+  return {
+    dateColumns,
+    rows: sortedRows,
+  };
+}
+
+function buildWorkbookTemplateSheets() {
+  const accountsSheetRows: Array<Array<string | number>> = [
+    [...WEALTH_WORKBOOK_ACCOUNTS_COLUMNS, ...WEALTH_IMPORT_TEMPLATE_DATE_COLUMNS],
+    [
+      "acc-001",
+      "Matthieu Duvinage",
+      "",
+      "Investment Portfolio",
+      "Interactive Brokers",
+      "Investment",
+      "EUR",
+      "7",
+      "Stocks",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "102000",
+      "104500",
+      "107300",
+    ],
+  ];
+
+  const portfolioLinesSheetRows: Array<Array<string | number>> = [
+    [...WEALTH_PORTFOLIO_LINES_COLUMNS],
+    ["acc-001", "ETF World", "Stocks", "Europe", "Developed Market", "EUR", "102000", "7"],
+  ];
+
+  const instructionsSheetRows: Array<Array<string>> = [
+    ["Wealth Import Instructions"],
+    ["1) Fill the Accounts sheet (one account per row, plus one column per date)."],
+    ["2) PortfolioLines is ONLY for rows whose account_type in Accounts is Investment."],
+    ["3) Do not include Cash, Savings, Property, Loan, Private Equity, or Cryptocurrency account_ids in PortfolioLines."],
+    ["4) Link portfolio lines to accounts with account_id."],
+    ["5) FX to EUR is derived automatically from currency and does not need to be provided."],
+    ["6) Keep tab names exactly: Accounts, PortfolioLines."],
+  ];
+
+  return { accountsSheetRows, portfolioLinesSheetRows, instructionsSheetRows };
+}
+
+function buildAccountsWorkbook(accounts: Account[]) {
+  const workbook = XLSX.utils.book_new();
+
+  if (accounts.length === 0) {
+    const template = buildWorkbookTemplateSheets();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(template.accountsSheetRows), WEALTH_SHEET_ACCOUNTS);
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(template.portfolioLinesSheetRows), WEALTH_SHEET_PORTFOLIO_LINES);
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(template.instructionsSheetRows), WEALTH_SHEET_INSTRUCTIONS);
+    return workbook;
+  }
+
+  const snapshot = buildAccountsRegistrySnapshot(accounts);
+  const accountsSheetRows: Array<Array<string | number>> = [
+    [...WEALTH_WORKBOOK_ACCOUNTS_COLUMNS, ...snapshot.dateColumns],
+    ...snapshot.rows.map((row) => {
+      const staticCells: Array<string | number> = [
+        row.accountId,
         row.ownerName,
         row.coOwnerName,
         row.accountName,
@@ -229,8 +366,9 @@ function buildAccountsRegistryCsv(accounts: Account[]): string {
         row.isMortgageLoan && row.mortgage ? row.mortgage.startDate : "",
         row.isMortgageLoan && row.mortgage ? row.mortgage.mortgageType : "",
       ];
+
       const dateCells = row.isMortgageLoan && row.mortgage
-        ? dateColumns.map((dateColumn) => {
+        ? snapshot.dateColumns.map((dateColumn) => {
             const remaining = computeAmortizedBalance(
               row.mortgage!.principal,
               row.mortgage!.annualRatePct,
@@ -238,14 +376,51 @@ function buildAccountsRegistryCsv(accounts: Account[]): string {
               row.mortgage!.startDate,
               dateColumn,
             );
-            return String(-Math.round(remaining * 100) / 100);
+            return -Math.round(remaining * 100) / 100;
           })
-        : dateColumns.map((dateColumn) => row.balancesByDate.get(dateColumn) ?? "");
+        : snapshot.dateColumns.map((dateColumn) => row.balancesByDate.get(dateColumn) ?? "");
+
       return [...staticCells, ...dateCells];
     }),
   ];
 
-  return rows.map((row) => row.map((cell) => toCsvCell(cell)).join(",")).join("\n");
+  const portfolioLinesSheetRows: Array<Array<string | number>> = [
+    [...WEALTH_PORTFOLIO_LINES_COLUMNS],
+    ...snapshot.rows.flatMap((row) => {
+      if (row.latestAccount.type !== "Investment") return [];
+      const portfolioLines = row.latestAccount.portfolioLines ?? [];
+      if (!portfolioLines.length) return [];
+      return portfolioLines.map((line) => [
+        row.accountId,
+        line.label,
+        line.allocationBucket,
+        (line as any).area ?? "Europe",
+        (line as any).marketType ?? "Developed Market",
+        line.currency,
+        line.nativeAmount,
+        line.expectedReturnPct,
+      ]);
+    }),
+  ];
+
+  if (portfolioLinesSheetRows.length === 1) {
+    const firstInvestment = snapshot.rows.find((row) => row.accountType === "Investment") ?? snapshot.rows[0];
+    portfolioLinesSheetRows.push([firstInvestment.accountId, "Main Position", firstInvestment.allocationBucket || "Stocks", "Europe", "Developed Market", firstInvestment.currency, 0, firstInvestment.expectedReturnPct]);
+  }
+
+  const instructionsSheetRows: Array<Array<string>> = [
+    ["Wealth Export / Import Guide"],
+    ["Accounts tab: one row per account series with time-series values as date columns."],
+    ["PortfolioLines tab: one row per portfolio line, linked with account_id, ONLY for Investment accounts."],
+    ["PortfolioLines rows for non-Investment accounts are ignored during upload."],
+    ["Required link: each PortfolioLines.account_id must exist in Accounts.account_id."],
+    ["FX to EUR is auto-fetched from currency during account editing and upload enrichment."],
+  ];
+
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(accountsSheetRows), WEALTH_SHEET_ACCOUNTS);
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(portfolioLinesSheetRows), WEALTH_SHEET_PORTFOLIO_LINES);
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(instructionsSheetRows), WEALTH_SHEET_INSTRUCTIONS);
+  return workbook;
 }
 
 function EditIcon() {
@@ -340,10 +515,24 @@ const AREA_OPTIONS: Array<{ value: AreaOption; label: string }> = [
   { value: "Oceania", label: "Oceania" },
 ];
 
+const AREA_OPTION_SET = new Set<AreaOption>(AREA_OPTIONS.map((option) => option.value));
+
 const MARKET_TYPE_OPTIONS: Array<{ value: MarketTypeOption; label: string }> = [
   { value: "Developed Market", label: "Developed Market" },
   { value: "Emerging Market", label: "Emerging Market" },
 ];
+
+const MARKET_TYPE_OPTION_SET = new Set<MarketTypeOption>(MARKET_TYPE_OPTIONS.map((option) => option.value));
+
+function normalizeAreaOption(value: unknown): AreaOption {
+  const next = String(value ?? "") as AreaOption;
+  return AREA_OPTION_SET.has(next) ? next : "Europe";
+}
+
+function normalizeMarketTypeOption(value: unknown): MarketTypeOption {
+  const next = String(value ?? "") as MarketTypeOption;
+  return MARKET_TYPE_OPTION_SET.has(next) ? next : "Developed Market";
+}
 
 type AccountFormState = {
   ownerId: string;
@@ -458,8 +647,8 @@ function buildPortfolioLinesForAccount(account?: Account): PortfolioLineState[] 
       id: line.id,
       label: line.label,
       allocationBucket: line.allocationBucket,
-      area: line.area || "Europe",
-      marketType: line.marketType || "Developed Market",
+      area: normalizeAreaOption(line.area),
+      marketType: normalizeMarketTypeOption(line.marketType),
       currency: line.currency,
       nativeAmount: String(line.nativeAmount),
       fxToEur: String(line.fxToEur),
@@ -644,7 +833,7 @@ export default function WealthAccountsPage() {
     [personProfiles],
   );
 
-  const { data: rawAccounts = [], isLoading, isError } = useWealthAccounts();
+  const { data: rawAccounts = [], isLoading, isError, refetch: refetchAccounts } = useWealthAccounts();
   const sourceAccounts = rawAccounts as Account[];
   const currentMonthKey = useMemo(() => formatMonthKey(new Date()), []);
   const accounts = useMemo(
@@ -1233,9 +1422,9 @@ export default function WealthAccountsPage() {
     setUpdatingAccountId(null);
   }
 
-  async function handleImportCsv() {
+  async function handleImportWorkbook() {
     if (!importFile) {
-      setImportError("Please choose a CSV file before importing.");
+      setImportError("Please choose a workbook (.xlsx) or CSV file before importing.");
       return;
     }
 
@@ -1243,13 +1432,175 @@ export default function WealthAccountsPage() {
     setImportResult(null);
 
     try {
-      const summary = await importAccountsCsv.mutateAsync(importFile);
+      const lowerName = importFile.name.toLowerCase();
+      if (lowerName.endsWith(".csv")) {
+        const summary = await importAccountsCsv.mutateAsync(importFile);
+        setImportResult(summary);
+        const profileMsg = summary.createdProfileCount > 0
+          ? `✓ Imported ${summary.createdCount} accounts and created ${summary.createdProfileCount} person profile${summary.createdProfileCount === 1 ? "" : "s"}.`
+          : `✓ Imported ${summary.createdCount} account${summary.createdCount === 1 ? "" : "s"}.`;
+        addToast(profileMsg, "success");
+        return;
+      }
+
+      const workbookBuffer = await importFile.arrayBuffer();
+      const workbook = XLSX.read(workbookBuffer, { type: "array" });
+      const accountsSheet = workbook.Sheets[WEALTH_SHEET_ACCOUNTS] ?? workbook.Sheets[workbook.SheetNames[0]];
+      if (!accountsSheet) {
+        throw new Error("Workbook is missing an Accounts tab.");
+      }
+
+      const accountsRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(accountsSheet, { defval: "" });
+      if (accountsRows.length === 0) {
+        throw new Error("Accounts tab is empty.");
+      }
+
+      const requiredColumns = ["owner_name", "account_name", "institution", "account_type", "currency", "expected_return_pct"];
+      const firstRowColumns = new Set(Object.keys(accountsRows[0] ?? {}));
+      const missingColumns = requiredColumns.filter((column) => !firstRowColumns.has(column));
+      if (missingColumns.length > 0) {
+        throw new Error(`Accounts tab is missing required columns: ${missingColumns.join(", ")}`);
+      }
+
+      const staticColumns = new Set<string>([...WEALTH_WORKBOOK_ACCOUNTS_COLUMNS, ...WEALTH_IMPORT_STATIC_COLUMNS]);
+      const dateColumns = Array.from(
+        new Set(
+          accountsRows.flatMap((row) => Object.keys(row)).filter((column) => !staticColumns.has(column) && column.trim() !== ""),
+        ),
+      ).sort();
+
+      const csvRows = [
+        [...WEALTH_IMPORT_STATIC_COLUMNS, ...dateColumns],
+        ...accountsRows.map((row) => [
+          ...WEALTH_IMPORT_STATIC_COLUMNS.map((column) => {
+            if (column === "mortgage_start_date") {
+              return normalizeMortgageStartDateForImport(row[column]);
+            }
+            return row[column] ?? "";
+          }),
+          ...dateColumns.map((column) => row[column] ?? ""),
+        ]),
+      ];
+      const csvContent = csvRows.map((row) => row.map((cell) => toCsvCell(cell as string | number | null | undefined)).join(",")).join("\n");
+      const generatedCsvFile = new File([csvContent], `wealth-accounts-import-${Date.now()}.csv`, { type: "text/csv;charset=utf-8;" });
+
+      const summary = await importAccountsCsv.mutateAsync(generatedCsvFile);
       setImportResult(summary);
 
-      // Show toast with profile creation feedback
+      let portfolioUpdatedCount = 0;
+      const warnings: string[] = [];
+      const portfolioSheet = workbook.Sheets[WEALTH_SHEET_PORTFOLIO_LINES];
+      if (portfolioSheet) {
+        const portfolioRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(portfolioSheet, { defval: "" });
+        if (portfolioRows.length > 0) {
+          const accountMetaById = new Map<string, { linkKey: string }>();
+          accountsRows.forEach((row, index) => {
+            const accountId = String(row.account_id ?? `acc-row-${index + 1}`).trim();
+            if (!accountId) return;
+            accountMetaById.set(accountId, {
+              linkKey: buildImportLinkKey({
+                ownerName: String(row.owner_name ?? ""),
+                coOwnerName: String(row.co_owner_name ?? ""),
+                accountName: String(row.account_name ?? ""),
+                institution: String(row.institution ?? ""),
+                accountType: String(row.account_type ?? ""),
+                currency: String(row.currency ?? ""),
+                expectedReturnPct: String(row.expected_return_pct ?? ""),
+                allocationBucket: String(row.allocation_bucket ?? ""),
+              }),
+            });
+          });
+
+          const groupedPortfolioRows = new Map<string, Record<string, unknown>[]>();
+          portfolioRows.forEach((row) => {
+            const accountId = String(row.account_id ?? "").trim();
+            if (!accountId) return;
+            const lines = groupedPortfolioRows.get(accountId) ?? [];
+            lines.push(row);
+            groupedPortfolioRows.set(accountId, lines);
+          });
+
+          const refetchResult = await refetchAccounts();
+          const refreshedAccounts = (refetchResult.data ?? sourceAccounts) as Account[];
+          const accountsByLinkKey = new Map<string, Account[]>();
+          refreshedAccounts.forEach((account) => {
+            const key = buildImportLinkKeyFromAccount(account);
+            const bucket = accountsByLinkKey.get(key) ?? [];
+            bucket.push(account);
+            accountsByLinkKey.set(key, bucket);
+          });
+
+          const fxByCurrency = new Map<SupportedCurrency, number>([["EUR", 1]]);
+          const currenciesToFetch = new Set<SupportedCurrency>();
+          for (const row of portfolioRows) {
+            const rawCurrency = String(row.currency ?? "EUR").trim().toUpperCase();
+            if (rawCurrency === "USD" || rawCurrency === "CHF") {
+              currenciesToFetch.add(rawCurrency);
+            }
+          }
+          for (const currency of currenciesToFetch) {
+            try {
+              const liveRate = await fetchFxToEur(currency);
+              fxByCurrency.set(currency, liveRate);
+            } catch {
+              fxByCurrency.set(currency, latestFxByCurrency[currency] ?? 1);
+            }
+          }
+
+          for (const [accountId, rows] of groupedPortfolioRows.entries()) {
+            const accountMeta = accountMetaById.get(accountId);
+            if (!accountMeta) {
+              warnings.push(`PortfolioLines references unknown account_id '${accountId}'.`);
+              continue;
+            }
+            const linkedAccounts = accountsByLinkKey.get(accountMeta.linkKey) ?? [];
+            if (linkedAccounts.length === 0) {
+              warnings.push(`No imported account match found for account_id '${accountId}'.`);
+              continue;
+            }
+
+            const investmentAccounts = linkedAccounts.filter((account) => account.type === "Investment");
+            if (investmentAccounts.length === 0) {
+              warnings.push(`PortfolioLines for account_id '${accountId}' ignored because linked account is not Investment.`);
+              continue;
+            }
+
+            const importedLineBlueprints = rows.map((row) => {
+              const rawCurrency = String(row.currency ?? "EUR").trim().toUpperCase();
+              const currency: SupportedCurrency = rawCurrency === "USD" || rawCurrency === "CHF" ? rawCurrency : "EUR";
+              const nativeAmount = Number(row.amount ?? 0);
+              const expectedReturnPct = Number(row.expected_return_pct ?? 0);
+              return {
+                label: String(row.label ?? "Position"),
+                allocationBucket: String(row.allocation_bucket ?? "Stocks") as AllocationBucket,
+                area: String(row.area ?? "Europe"),
+                marketType: String(row.market_type ?? "Developed Market"),
+                currency,
+                nativeAmount: Number.isFinite(nativeAmount) ? nativeAmount : 0,
+                fxToEur: fxByCurrency.get(currency) ?? 1,
+                expectedReturnPct: Number.isFinite(expectedReturnPct) ? expectedReturnPct : 0,
+              };
+            });
+
+            for (const linkedAccount of investmentAccounts) {
+              const portfolioLines = importedLineBlueprints.map((line, index) => ({
+                ...line,
+                id: `pl-import-${linkedAccount.id}-${Date.now()}-${index}`,
+              }));
+              await updateAccount.mutateAsync({ id: linkedAccount.id, portfolioLines: portfolioLines as any });
+              portfolioUpdatedCount += 1;
+            }
+          }
+        }
+      }
+
+      if (warnings.length > 0) {
+        setImportError(warnings.join(" "));
+      }
+
       const profileMsg = summary.createdProfileCount > 0
-        ? `✓ Imported ${summary.createdCount} accounts and created ${summary.createdProfileCount} person profile${summary.createdProfileCount === 1 ? "" : "s"}.`
-        : `✓ Imported ${summary.createdCount} account${summary.createdCount === 1 ? "" : "s"}.`;
+        ? `✓ Imported ${summary.createdCount} accounts, created ${summary.createdProfileCount} person profile${summary.createdProfileCount === 1 ? "" : "s"}, and updated portfolio lines on ${portfolioUpdatedCount} account snapshot${portfolioUpdatedCount === 1 ? "" : "s"}.`
+        : `✓ Imported ${summary.createdCount} account${summary.createdCount === 1 ? "" : "s"} and updated portfolio lines on ${portfolioUpdatedCount} account snapshot${portfolioUpdatedCount === 1 ? "" : "s"}.`;
       addToast(profileMsg, "success");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Import failed.";
@@ -1266,12 +1617,13 @@ export default function WealthAccountsPage() {
     setToasts((prev) => prev.filter((toast) => toast.id !== id));
   }
 
-  function handleDownloadTemplate() {
-    const csvContent = buildAccountsRegistryCsv(sourceAccounts);
+  function handleDownloadWorkbook() {
+    const workbook = buildAccountsWorkbook(sourceAccounts);
+    const workbookBinary = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
     const filename = sourceAccounts.length > 0
-      ? `wealth-accounts-registry-${new Date().toISOString().slice(0, 10)}.csv`
-      : "wealth-accounts-import-template.csv";
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      ? `wealth-accounts-registry-${new Date().toISOString().slice(0, 10)}.xlsx`
+      : "wealth-accounts-import-template.xlsx";
+    const blob = new Blob([workbookBinary], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -1428,16 +1780,18 @@ export default function WealthAccountsPage() {
 
       <SurfaceCard>
         <div className="card-header">
-          <h3 style={{ margin: 0 }}>Bulk Import (CSV)</h3>
+          <h3 style={{ margin: 0 }}>Bulk Import (Workbook)</h3>
         </div>
         <div style={{ display: "grid", gap: 12 }}>
           <p className="wealth-muted" style={{ margin: 0 }}>
-            Upload a wide CSV: static account columns + one column per date (YYYY-MM-DD). Each non-empty date cell creates an account entry for that date.
+            Upload a workbook with two tabs: <strong>Accounts</strong> and <strong>PortfolioLines</strong>. Accounts uses wide date columns (YYYY-MM-DD), while PortfolioLines links rows to Accounts with <strong>account_id</strong>.
+            PortfolioLines is only processed for Accounts rows where <strong>account_type = Investment</strong>; other account types are ignored in that tab.
+            Legacy CSV import is still supported.
           </p>
           <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
             <input
               type="file"
-              accept=".csv,text/csv"
+              accept=".xlsx,.xls,.csv,text/csv"
               onChange={(e) => {
                 setImportFile(e.target.files?.[0] ?? null);
                 setImportError(null);
@@ -1448,9 +1802,9 @@ export default function WealthAccountsPage() {
               type="button"
               variant="icon"
               className="wealth-compact-icon-button"
-              aria-label={importAccountsCsv.isPending ? "Importing CSV" : "Import CSV"}
-              title={importAccountsCsv.isPending ? "Importing CSV" : "Import CSV"}
-              onClick={handleImportCsv}
+              aria-label={importAccountsCsv.isPending ? "Importing workbook" : "Import workbook"}
+              title={importAccountsCsv.isPending ? "Importing workbook" : "Import workbook"}
+              onClick={handleImportWorkbook}
               disabled={!importFile || importAccountsCsv.isPending}
             >
               <ImportIcon />
@@ -1506,9 +1860,9 @@ export default function WealthAccountsPage() {
               type="button"
               variant="icon"
               className="wealth-compact-icon-button"
-              aria-label={sourceAccounts.length > 0 ? "Download full account registry CSV" : "Download CSV template"}
-              title={sourceAccounts.length > 0 ? "Download full account registry CSV" : "Download CSV template"}
-              onClick={handleDownloadTemplate}
+              aria-label={sourceAccounts.length > 0 ? "Download full account workbook" : "Download workbook template"}
+              title={sourceAccounts.length > 0 ? "Download full account workbook" : "Download workbook template"}
+              onClick={handleDownloadWorkbook}
             >
               <DownloadIcon />
             </Button>
@@ -1971,7 +2325,7 @@ export default function WealthAccountsPage() {
                           label="Currency"
                           value={line.currency}
                           onChange={async (e) => {
-                            const newCurrency = e.target.value;
+                            const newCurrency = e.target.value as SupportedCurrency;
                             handlePortfolioLineChange(line.id, "currency", newCurrency);
                             // Fetch FX rate if not EUR
                             let fx = "1";

@@ -30,6 +30,8 @@ export type PortfolioLine = {
   id: string;
   label: string;
   allocationBucket: AllocationBucket;
+  area?: string;
+  marketType?: string;
   currency: SupportedCurrency;
   nativeAmount: number;
   fxToEur: number;
