@@ -135,6 +135,8 @@ class WealthPortfolioLine(Base):
     account_id = Column(String, ForeignKey("wealth_accounts.id"), nullable=False)
     label = Column(String, nullable=False)
     allocation_bucket = Column(String, nullable=False)
+    area = Column(String, nullable=True)
+    market_type = Column(String, nullable=True)
     currency = Column(String, nullable=False, default="EUR")
     native_amount = Column(Float, nullable=False, default=0.0)
     fx_to_eur = Column(Float, nullable=False, default=1.0)

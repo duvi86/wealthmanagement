@@ -167,7 +167,13 @@ function normalizeMortgageStartDateForImport(value: unknown): string {
 }
 
 function normalizeImportValue(value: string | undefined | null): string {
-  return (value ?? "").toString().trim().toLowerCase();
+  return (value ?? "")
+    .toString()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, " ")
+    .trim()
+    .toLowerCase();
 }
 
 function buildImportLinkKey(input: {
@@ -192,6 +198,36 @@ function buildImportLinkKey(input: {
   ].join("\u0001");
 }
 
+function buildImportLinkKeyLoose(input: {
+  ownerName: string;
+  coOwnerName?: string;
+  accountName: string;
+  institution: string;
+  accountType: string;
+  currency: string;
+}): string {
+  return [
+    normalizeImportValue(input.ownerName),
+    normalizeImportValue(input.coOwnerName ?? ""),
+    normalizeImportValue(input.accountName),
+    normalizeImportValue(input.institution),
+    normalizeImportValue(input.accountType),
+    normalizeImportValue(input.currency),
+  ].join("\u0001");
+}
+
+function buildImportLinkKeyVeryLoose(input: {
+  ownerName: string;
+  accountName: string;
+  institution: string;
+}): string {
+  return [
+    normalizeImportValue(input.ownerName),
+    normalizeImportValue(input.accountName),
+    normalizeImportValue(input.institution),
+  ].join("\u0001");
+}
+
 function buildImportLinkKeyFromAccount(account: Account): string {
   return buildImportLinkKey({
     ownerName: account.ownerName,
@@ -202,6 +238,25 @@ function buildImportLinkKeyFromAccount(account: Account): string {
     currency: account.currency,
     expectedReturnPct: account.expectedReturnPct,
     allocationBucket: account.allocationBucket ?? "",
+  });
+}
+
+function buildImportLinkKeyLooseFromAccount(account: Account): string {
+  return buildImportLinkKeyLoose({
+    ownerName: account.ownerName,
+    coOwnerName: account.coOwnerName ?? "",
+    accountName: account.accountName,
+    institution: account.institution,
+    accountType: account.type,
+    currency: account.currency,
+  });
+}
+
+function buildImportLinkKeyVeryLooseFromAccount(account: Account): string {
+  return buildImportLinkKeyVeryLoose({
+    ownerName: account.ownerName,
+    accountName: account.accountName,
+    institution: account.institution,
   });
 }
 
@@ -325,8 +380,8 @@ function buildWorkbookTemplateSheets() {
   const instructionsSheetRows: Array<Array<string>> = [
     ["Wealth Import Instructions"],
     ["1) Fill the Accounts sheet (one account per row, plus one column per date)."],
-    ["2) PortfolioLines is ONLY for rows whose account_type in Accounts is Investment."],
-    ["3) Do not include Cash, Savings, Property, Loan, Private Equity, or Cryptocurrency account_ids in PortfolioLines."],
+    ["2) PortfolioLines is for rows whose account_type in Accounts is Investment, Private Equity, or Property."],
+    ["3) Do not include Cash, Savings, Loan, or Cryptocurrency account_ids in PortfolioLines."],
     ["4) Link portfolio lines to accounts with account_id."],
     ["5) FX to EUR is derived automatically from currency and does not need to be provided."],
     ["6) Keep tab names exactly: Accounts, PortfolioLines."],
@@ -387,9 +442,22 @@ function buildAccountsWorkbook(accounts: Account[]) {
   const portfolioLinesSheetRows: Array<Array<string | number>> = [
     [...WEALTH_PORTFOLIO_LINES_COLUMNS],
     ...snapshot.rows.flatMap((row) => {
-      if (row.latestAccount.type !== "Investment") return [];
+      if (!supportsPortfolioLines(row.latestAccount.type)) return [];
       const portfolioLines = row.latestAccount.portfolioLines ?? [];
-      if (!portfolioLines.length) return [];
+
+      if (!portfolioLines.length) {
+        return [[
+          row.accountId,
+          row.latestAccount.accountName || "Main Position",
+          row.allocationBucket || "Stocks",
+          "Europe",
+          "Developed Market",
+          row.latestAccount.currency,
+          row.latestAccount.nativeBalance,
+          row.latestAccount.expectedReturnPct,
+        ]];
+      }
+
       return portfolioLines.map((line) => [
         row.accountId,
         line.label,
@@ -404,15 +472,17 @@ function buildAccountsWorkbook(accounts: Account[]) {
   ];
 
   if (portfolioLinesSheetRows.length === 1) {
-    const firstInvestment = snapshot.rows.find((row) => row.accountType === "Investment") ?? snapshot.rows[0];
-    portfolioLinesSheetRows.push([firstInvestment.accountId, "Main Position", firstInvestment.allocationBucket || "Stocks", "Europe", "Developed Market", firstInvestment.currency, 0, firstInvestment.expectedReturnPct]);
+    const firstSupported = snapshot.rows.find((row) => supportsPortfolioLines(row.accountType));
+    if (firstSupported) {
+      portfolioLinesSheetRows.push([firstSupported.accountId, "Main Position", firstSupported.allocationBucket || "Stocks", "Europe", "Developed Market", firstSupported.currency, 0, firstSupported.expectedReturnPct]);
+    }
   }
 
   const instructionsSheetRows: Array<Array<string>> = [
     ["Wealth Export / Import Guide"],
     ["Accounts tab: one row per account series with time-series values as date columns."],
-    ["PortfolioLines tab: one row per portfolio line, linked with account_id, ONLY for Investment accounts."],
-    ["PortfolioLines rows for non-Investment accounts are ignored during upload."],
+    ["PortfolioLines tab: one row per portfolio line, linked with account_id, for Investment, Private Equity, and Property accounts."],
+    ["PortfolioLines rows for other account types are ignored during upload."],
     ["Required link: each PortfolioLines.account_id must exist in Accounts.account_id."],
     ["FX to EUR is auto-fetched from currency during account editing and upload enrichment."],
   ];
@@ -615,6 +685,12 @@ const CURRENCY_OPTIONS: Array<{ value: "EUR" | "USD" | "CHF"; label: string }> =
   { value: "CHF", label: "CHF" },
 ];
 
+const PORTFOLIO_LINE_ACCOUNT_TYPES: AccountType[] = ["Investment", "Private Equity", "Property"];
+
+function supportsPortfolioLines(type: string) {
+  return PORTFOLIO_LINE_ACCOUNT_TYPES.includes(type as AccountType);
+}
+
 const PORTFOLIO_BUCKET_OPTIONS: Array<{ value: AllocationBucket; label: string }> = [
   { value: "Stocks", label: "Stocks" },
   { value: "Bonds", label: "Bonds" },
@@ -656,7 +732,7 @@ function buildPortfolioLinesForAccount(account?: Account): PortfolioLineState[] 
     }));
   }
 
-  if (account?.type === "Investment") {
+  if (account && supportsPortfolioLines(account.type)) {
     return [
       {
         id: `portfolio-line-${account.id}`,
@@ -1174,16 +1250,20 @@ export default function WealthAccountsPage() {
   const historyBySeriesKey = useMemo(() => {
     const grouped = new Map<string, Array<{ period: string; balanceEur: number }>>();
 
+    const getSnapshotBalanceEur = (account: Account, monthKey: string) => {
+      if (account.type === "Loan") {
+        const loanBalance = getLoanAccountBalanceForMonth(account, monthKey);
+        return Number(loanBalance) * Number(account.fxToEur || 1);
+      }
+      return Number(account.nativeBalance) * Number(account.fxToEur || 1);
+    };
+
     for (const account of sourceAccounts) {
       const key = getAccountSeriesKey(account);
       const period = account.updatedAt;
       const monthKey = period.slice(0, 7);
-      const accountForHistory =
-        account.type === "Loan"
-          ? { ...account, nativeBalance: getLoanAccountBalanceForMonth(account, monthKey) }
-          : account;
       const points = grouped.get(key) ?? [];
-      points.push({ period, balanceEur: toEur(accountForHistory) });
+      points.push({ period, balanceEur: getSnapshotBalanceEur(account, monthKey) });
       grouped.set(key, points);
     }
 
@@ -1331,11 +1411,13 @@ export default function WealthAccountsPage() {
     const coOwner = ownershipSplit[1];
 
     const portfolioLines =
-      formState.type === "Investment"
+      supportsPortfolioLines(formState.type)
         ? formState.portfolioLines.map((line) => ({
             id: line.id,
             label: line.label || "Unnamed line",
             allocationBucket: line.allocationBucket,
+            area: line.area,
+            marketType: line.marketType,
             currency: line.currency,
             nativeAmount: Number(line.nativeAmount),
             fxToEur: Number(line.fxToEur),
@@ -1378,7 +1460,7 @@ export default function WealthAccountsPage() {
           ? investmentExpectedReturnPct
           : Number(formState.expectedReturnPct || 0),
       allocationBucket:
-        formState.type === "Investment" && portfolioLines?.length === 1
+        supportsPortfolioLines(formState.type) && portfolioLines?.length === 1
           ? portfolioLines[0].allocationBucket
           : undefined,
       portfolioLines,
@@ -1493,7 +1575,19 @@ export default function WealthAccountsPage() {
       if (portfolioSheet) {
         const portfolioRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(portfolioSheet, { defval: "" });
         if (portfolioRows.length > 0) {
-          const accountMetaById = new Map<string, { linkKey: string }>();
+          const normalizedPortfolioRows: Record<string, unknown>[] = [];
+          let lastAccountId = "";
+          portfolioRows.forEach((row) => {
+            const rawAccountId = String(row.account_id ?? "").trim();
+            const accountId = rawAccountId || lastAccountId;
+            if (!accountId) {
+              return;
+            }
+            lastAccountId = accountId;
+            normalizedPortfolioRows.push({ ...row, account_id: accountId });
+          });
+
+          const accountMetaById = new Map<string, { linkKey: string; looseLinkKey: string; veryLooseLinkKey: string }>();
           accountsRows.forEach((row, index) => {
             const accountId = String(row.account_id ?? `acc-row-${index + 1}`).trim();
             if (!accountId) return;
@@ -1508,11 +1602,24 @@ export default function WealthAccountsPage() {
                 expectedReturnPct: String(row.expected_return_pct ?? ""),
                 allocationBucket: String(row.allocation_bucket ?? ""),
               }),
+              looseLinkKey: buildImportLinkKeyLoose({
+                ownerName: String(row.owner_name ?? ""),
+                coOwnerName: String(row.co_owner_name ?? ""),
+                accountName: String(row.account_name ?? ""),
+                institution: String(row.institution ?? ""),
+                accountType: String(row.account_type ?? ""),
+                currency: String(row.currency ?? ""),
+              }),
+              veryLooseLinkKey: buildImportLinkKeyVeryLoose({
+                ownerName: String(row.owner_name ?? ""),
+                accountName: String(row.account_name ?? ""),
+                institution: String(row.institution ?? ""),
+              }),
             });
           });
 
           const groupedPortfolioRows = new Map<string, Record<string, unknown>[]>();
-          portfolioRows.forEach((row) => {
+          normalizedPortfolioRows.forEach((row) => {
             const accountId = String(row.account_id ?? "").trim();
             if (!accountId) return;
             const lines = groupedPortfolioRows.get(accountId) ?? [];
@@ -1523,16 +1630,28 @@ export default function WealthAccountsPage() {
           const refetchResult = await refetchAccounts();
           const refreshedAccounts = (refetchResult.data ?? sourceAccounts) as Account[];
           const accountsByLinkKey = new Map<string, Account[]>();
+          const accountsByLooseLinkKey = new Map<string, Account[]>();
+          const accountsByVeryLooseLinkKey = new Map<string, Account[]>();
           refreshedAccounts.forEach((account) => {
             const key = buildImportLinkKeyFromAccount(account);
             const bucket = accountsByLinkKey.get(key) ?? [];
             bucket.push(account);
             accountsByLinkKey.set(key, bucket);
+
+            const looseKey = buildImportLinkKeyLooseFromAccount(account);
+            const looseBucket = accountsByLooseLinkKey.get(looseKey) ?? [];
+            looseBucket.push(account);
+            accountsByLooseLinkKey.set(looseKey, looseBucket);
+
+            const veryLooseKey = buildImportLinkKeyVeryLooseFromAccount(account);
+            const veryLooseBucket = accountsByVeryLooseLinkKey.get(veryLooseKey) ?? [];
+            veryLooseBucket.push(account);
+            accountsByVeryLooseLinkKey.set(veryLooseKey, veryLooseBucket);
           });
 
           const fxByCurrency = new Map<SupportedCurrency, number>([["EUR", 1]]);
           const currenciesToFetch = new Set<SupportedCurrency>();
-          for (const row of portfolioRows) {
+          for (const row of normalizedPortfolioRows) {
             const rawCurrency = String(row.currency ?? "EUR").trim().toUpperCase();
             if (rawCurrency === "USD" || rawCurrency === "CHF") {
               currenciesToFetch.add(rawCurrency);
@@ -1553,15 +1672,19 @@ export default function WealthAccountsPage() {
               warnings.push(`PortfolioLines references unknown account_id '${accountId}'.`);
               continue;
             }
-            const linkedAccounts = accountsByLinkKey.get(accountMeta.linkKey) ?? [];
+            const linkedAccounts =
+              accountsByLinkKey.get(accountMeta.linkKey) ??
+              accountsByLooseLinkKey.get(accountMeta.looseLinkKey) ??
+              accountsByVeryLooseLinkKey.get(accountMeta.veryLooseLinkKey) ??
+              [];
             if (linkedAccounts.length === 0) {
               warnings.push(`No imported account match found for account_id '${accountId}'.`);
               continue;
             }
 
-            const investmentAccounts = linkedAccounts.filter((account) => account.type === "Investment");
-            if (investmentAccounts.length === 0) {
-              warnings.push(`PortfolioLines for account_id '${accountId}' ignored because linked account is not Investment.`);
+            const eligibleAccounts = linkedAccounts.filter((account) => supportsPortfolioLines(account.type));
+            if (eligibleAccounts.length === 0) {
+              warnings.push(`PortfolioLines for account_id '${accountId}' ignored because linked account type is not Investment, Private Equity, or Property.`);
               continue;
             }
 
@@ -1573,8 +1696,8 @@ export default function WealthAccountsPage() {
               return {
                 label: String(row.label ?? "Position"),
                 allocationBucket: String(row.allocation_bucket ?? "Stocks") as AllocationBucket,
-                area: String(row.area ?? "Europe"),
-                marketType: String(row.market_type ?? "Developed Market"),
+                area: normalizeAreaOption(row.area),
+                marketType: normalizeMarketTypeOption(row.market_type),
                 currency,
                 nativeAmount: Number.isFinite(nativeAmount) ? nativeAmount : 0,
                 fxToEur: fxByCurrency.get(currency) ?? 1,
@@ -1582,7 +1705,7 @@ export default function WealthAccountsPage() {
               };
             });
 
-            for (const linkedAccount of investmentAccounts) {
+            for (const linkedAccount of eligibleAccounts) {
               const portfolioLines = importedLineBlueprints.map((line, index) => ({
                 ...line,
                 id: `pl-import-${linkedAccount.id}-${Date.now()}-${index}`,
@@ -1785,7 +1908,7 @@ export default function WealthAccountsPage() {
         <div style={{ display: "grid", gap: 12 }}>
           <p className="wealth-muted" style={{ margin: 0 }}>
             Upload a workbook with two tabs: <strong>Accounts</strong> and <strong>PortfolioLines</strong>. Accounts uses wide date columns (YYYY-MM-DD), while PortfolioLines links rows to Accounts with <strong>account_id</strong>.
-            PortfolioLines is only processed for Accounts rows where <strong>account_type = Investment</strong>; other account types are ignored in that tab.
+            PortfolioLines is processed for Accounts rows where <strong>account_type = Investment, Private Equity, or Property</strong>; other account types are ignored in that tab.
             Legacy CSV import is still supported.
           </p>
           <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
@@ -2016,7 +2139,7 @@ export default function WealthAccountsPage() {
                     ...prev,
                     type: nextType,
                     portfolioLines:
-                      nextType === "Investment"
+                      supportsPortfolioLines(nextType)
                         ? prev.portfolioLines.length > 0
                           ? prev.portfolioLines
                           : [makeEmptyPortfolioLine()]
@@ -2281,7 +2404,7 @@ export default function WealthAccountsPage() {
                 },
               ]}
             />
-          ) : formState.type === "Investment" ? (
+          ) : supportsPortfolioLines(formState.type) ? (
             <>
               <div className="form-section">
                 <div className="wealth-portfolio-header">

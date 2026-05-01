@@ -370,8 +370,8 @@ export function useImportWealthAccountsCsv() {
         headers: {
           "Content-Type": "multipart/form-data",
         },
-      });
-      return response.data;
+      }) as unknown as WealthAccountImportSummary;
+      return response;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["wealth", "accounts"] }),
   });

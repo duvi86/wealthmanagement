@@ -1,0 +1,111 @@
+line_id,account_id,account_name,account_type,owner_name,institution,updated_at,line_label,allocation_bucket,area,market_type,currency,native_amount,fx_to_eur
+pl-import-a-271d864e-1777611293115-0,a-271d864e,Crypto,Investment,Matthieu Duvinage,Binance,2026-04-15,Crypto,Stocks,,,EUR,7000.0,1.0
+pl-import-a-638b0089-1777611290690-0,a-638b0089,Personal Investment,Investment,Matthieu Duvinage,SaxoBank,2026-04-15,Personal Investment,Stocks,,,EUR,116500.0,1.0
+pl-import-a-86e0df3a-1777611292309-0,a-86e0df3a,Crypto,Investment,Matthieu Duvinage,Binance,2026-01-01,Crypto,Stocks,,,EUR,7000.0,1.0
+pl-import-a-7edfe276-1777611285598-0,a-7edfe276,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2026-01-01,Investment Portfolio,Stocks,,,EUR,828000.0,1.0
+pl-import-a-7edfe276-1777611285598-1,a-7edfe276,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2026-01-01,Investment e,Bonds,,,EUR,828000.0,1.0
+pl-import-a-79ac6a32-1777611294168-0,a-79ac6a32,Pension,Investment,Matthieu Duvinage,State,2026-01-01,Pension,Stocks,,,EUR,100000.0,1.0
+pl-import-a-c5ce312c-1777611289011-0,a-c5ce312c,Personal Investment,Investment,Matthieu Duvinage,SaxoBank,2026-01-01,Personal Investment,Stocks,,,EUR,116500.0,1.0
+pl-import-a-23a975ce-1777611292658-0,a-23a975ce,Crypto,Investment,Matthieu Duvinage,Binance,2025-11-01,Crypto,Stocks,,,EUR,7000.0,1.0
+pl-import-a-496a2c62-1777611285941-0,a-496a2c62,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2025-11-01,Investment Portfolio,Stocks,,,EUR,828000.0,1.0
+pl-import-a-496a2c62-1777611285941-1,a-496a2c62,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2025-11-01,Investment e,Bonds,,,EUR,828000.0,1.0
+pl-import-a-1c19f9cc-1777611294516-0,a-1c19f9cc,Pension,Investment,Matthieu Duvinage,State,2025-11-01,Pension,Stocks,,,EUR,100000.0,1.0
+pl-import-a-de34d51c-1777611289345-0,a-de34d51c,Personal Investment,Investment,Matthieu Duvinage,SaxoBank,2025-11-01,Personal Investment,Stocks,,,EUR,116500.0,1.0
+pl-import-a-d959c2eb-1777611293687-0,a-d959c2eb,Crypto,Investment,Matthieu Duvinage,Binance,2025-08-15,Crypto,Stocks,,,EUR,7000.0,1.0
+pl-import-a-6f4dac74-1777611288443-0,a-6f4dac74,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2025-08-15,Investment Portfolio,Stocks,,,EUR,828000.0,1.0
+pl-import-a-6f4dac74-1777611288443-1,a-6f4dac74,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2025-08-15,Investment e,Bonds,,,EUR,828000.0,1.0
+pl-import-a-d3b83db2-1777611291856-0,a-d3b83db2,Personal Investment,Investment,Matthieu Duvinage,SaxoBank,2025-08-15,Personal Investment,Stocks,,,EUR,116500.0,1.0
+pl-import-a-ee8a998e-1777611293462-0,a-ee8a998e,Crypto,Investment,Matthieu Duvinage,Binance,2025-07-01,Crypto,Stocks,,,EUR,7000.0,1.0
+pl-import-a-721db507-1777611288081-0,a-721db507,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2025-07-01,Investment Portfolio,Stocks,,,EUR,828000.0,1.0
+pl-import-a-721db507-1777611288081-1,a-721db507,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2025-07-01,Investment e,Bonds,,,EUR,828000.0,1.0
+pl-import-a-73faf50d-1777611291507-0,a-73faf50d,Personal Investment,Investment,Matthieu Duvinage,SaxoBank,2025-07-01,Personal Investment,Stocks,,,EUR,116500.0,1.0
+pl-import-a-a1ebdca0-1777611293232-0,a-a1ebdca0,Crypto,Investment,Matthieu Duvinage,Binance,2025-05-01,Crypto,Stocks,,,EUR,7000.0,1.0
+pl-import-a-4099ba6e-1777611287402-0,a-4099ba6e,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2025-05-01,Investment Portfolio,Stocks,,,EUR,828000.0,1.0
+pl-import-a-4099ba6e-1777611287402-1,a-4099ba6e,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2025-05-01,Investment e,Bonds,,,EUR,828000.0,1.0
+pl-import-a-b4ac4045-1777611290803-0,a-b4ac4045,Personal Investment,Investment,Matthieu Duvinage,SaxoBank,2025-05-01,Personal Investment,Stocks,,,EUR,116500.0,1.0
+pl-import-a-c1c1c10f-1777611292892-0,a-c1c1c10f,Crypto,Investment,Matthieu Duvinage,Binance,2024-12-31,Crypto,Stocks,,,EUR,7000.0,1.0
+pl-import-a-d631a30d-1777611286616-0,a-d631a30d,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2024-12-31,Investment Portfolio,Stocks,,,EUR,828000.0,1.0
+pl-import-a-d631a30d-1777611286616-1,a-d631a30d,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2024-12-31,Investment e,Bonds,,,EUR,828000.0,1.0
+pl-import-a-fa6d2dd4-1777611290015-0,a-fa6d2dd4,Personal Investment,Investment,Matthieu Duvinage,SaxoBank,2024-12-31,Personal Investment,Stocks,,,EUR,116500.0,1.0
+pl-import-a-4b1412fe-1777611292432-0,a-4b1412fe,Crypto,Investment,Matthieu Duvinage,Binance,2024-10-01,Crypto,Stocks,,,EUR,7000.0,1.0
+pl-import-a-a126b85d-1777611285714-0,a-a126b85d,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2024-10-01,Investment Portfolio,Stocks,,,EUR,828000.0,1.0
+pl-import-a-a126b85d-1777611285714-1,a-a126b85d,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2024-10-01,Investment e,Bonds,,,EUR,828000.0,1.0
+pl-import-a-0350e19e-1777611294283-0,a-0350e19e,Pension,Investment,Matthieu Duvinage,State,2024-10-01,Pension,Stocks,,,EUR,100000.0,1.0
+pl-import-a-61ff5b7f-1777611289123-0,a-61ff5b7f,Personal Investment,Investment,Matthieu Duvinage,SaxoBank,2024-10-01,Personal Investment,Stocks,,,EUR,116500.0,1.0
+pl-import-a-61dd9c71-1777611293349-0,a-61dd9c71,Crypto,Investment,Matthieu Duvinage,Binance,2024-07-01,Crypto,Stocks,,,EUR,7000.0,1.0
+pl-import-a-ad98bb4f-1777611287970-0,a-ad98bb4f,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2024-07-01,Investment Portfolio,Stocks,,,EUR,828000.0,1.0
+pl-import-a-ad98bb4f-1777611287970-1,a-ad98bb4f,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2024-07-01,Investment e,Bonds,,,EUR,828000.0,1.0
+pl-import-a-04c6fb3c-1777611291397-0,a-04c6fb3c,Personal Investment,Investment,Matthieu Duvinage,SaxoBank,2024-07-01,Personal Investment,Stocks,,,EUR,116500.0,1.0
+pl-import-a-0b2af0ab-1777611293005-0,a-0b2af0ab,Crypto,Investment,Matthieu Duvinage,Binance,2024-04-01,Crypto,Stocks,,,EUR,7000.0,1.0
+pl-import-a-fe3c1092-1777611287174-0,a-fe3c1092,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2024-04-01,Investment Portfolio,Stocks,,,EUR,828000.0,1.0
+pl-import-a-fe3c1092-1777611287174-1,a-fe3c1092,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2024-04-01,Investment e,Bonds,,,EUR,828000.0,1.0
+pl-import-a-dab57965-1777611290578-0,a-dab57965,Personal Investment,Investment,Matthieu Duvinage,SaxoBank,2024-04-01,Personal Investment,Stocks,,,EUR,116500.0,1.0
+pl-import-a-57fdc990-1777611292196-0,a-57fdc990,Crypto,Investment,Matthieu Duvinage,Binance,2024-01-01,Crypto,Stocks,,,EUR,7000.0,1.0
+pl-import-a-7e19e1cd-1777611285489-0,a-7e19e1cd,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2024-01-01,Investment Portfolio,Stocks,,,EUR,828000.0,1.0
+pl-import-a-7e19e1cd-1777611285489-1,a-7e19e1cd,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2024-01-01,Investment e,Bonds,,,EUR,828000.0,1.0
+pl-import-a-a5052f96-1777611294054-0,a-a5052f96,Pension,Investment,Matthieu Duvinage,State,2024-01-01,Pension,Stocks,,,EUR,100000.0,1.0
+pl-import-a-a3def93e-1777611288896-0,a-a3def93e,Personal Investment,Investment,Matthieu Duvinage,SaxoBank,2024-01-01,Personal Investment,Stocks,,,EUR,116500.0,1.0
+pl-import-a-98a06f0c-1777611292775-0,a-98a06f0c,Crypto,Investment,Matthieu Duvinage,Binance,2023-11-04,Crypto,Stocks,,,EUR,7000.0,1.0
+pl-import-a-243ae0e6-1777611286054-0,a-243ae0e6,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2023-11-04,Investment Portfolio,Stocks,,,EUR,828000.0,1.0
+pl-import-a-243ae0e6-1777611286054-1,a-243ae0e6,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2023-11-04,Investment e,Bonds,,,EUR,828000.0,1.0
+pl-import-a-478d8a64-1777611289455-0,a-478d8a64,Personal Investment,Investment,Matthieu Duvinage,SaxoBank,2023-11-04,Personal Investment,Stocks,,,EUR,116500.0,1.0
+pl-import-a-266588f3-1777611293575-0,a-266588f3,Crypto,Investment,Matthieu Duvinage,Binance,2023-07-21,Crypto,Stocks,,,EUR,7000.0,1.0
+pl-import-a-e7de94a1-1777611288331-0,a-e7de94a1,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2023-07-21,Investment Portfolio,Stocks,,,EUR,828000.0,1.0
+pl-import-a-e7de94a1-1777611288331-1,a-e7de94a1,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2023-07-21,Investment e,Bonds,,,EUR,828000.0,1.0
+pl-import-a-fddc24d7-1777611291739-0,a-fddc24d7,Personal Investment,Investment,Matthieu Duvinage,SaxoBank,2023-07-21,Personal Investment,Stocks,,,EUR,116500.0,1.0
+pl-import-a-6fdb554a-1777611287064-0,a-6fdb554a,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2023-04-01,Investment Portfolio,Stocks,,,EUR,828000.0,1.0
+pl-import-a-6fdb554a-1777611287064-1,a-6fdb554a,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2023-04-01,Investment e,Bonds,,,EUR,828000.0,1.0
+pl-import-a-97597ca5-1777611290466-0,a-97597ca5,Personal Investment,Investment,Matthieu Duvinage,SaxoBank,2023-04-01,Personal Investment,Stocks,,,EUR,116500.0,1.0
+pl-import-a-9f988431-1777611285378-0,a-9f988431,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2023-01-01,Investment Portfolio,Stocks,,,EUR,828000.0,1.0
+pl-import-a-9f988431-1777611285378-1,a-9f988431,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2023-01-01,Investment e,Bonds,,,EUR,828000.0,1.0
+pl-import-a-b31eda51-1777611293918-0,a-b31eda51,Pension,Investment,Matthieu Duvinage,State,2023-01-01,Pension,Stocks,,,EUR,100000.0,1.0
+pl-import-a-186d5e85-1777611288780-0,a-186d5e85,Personal Investment,Investment,Matthieu Duvinage,SaxoBank,2023-01-01,Personal Investment,Stocks,,,EUR,116500.0,1.0
+pl-import-a-01ccd0de-1777611292082-0,a-01ccd0de,Crypto,Investment,Matthieu Duvinage,Binance,2022-01-01,Crypto,Stocks,,,EUR,7000.0,1.0
+pl-import-a-d5d72e63-1777611285264-0,a-d5d72e63,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2022-01-01,Investment Portfolio,Stocks,,,EUR,828000.0,1.0
+pl-import-a-d5d72e63-1777611285264-1,a-d5d72e63,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2022-01-01,Investment e,Bonds,,,EUR,828000.0,1.0
+pl-import-a-d7e494a7-1777611293802-0,a-d7e494a7,Pension,Investment,Matthieu Duvinage,State,2022-01-01,Pension,Stocks,,,EUR,100000.0,1.0
+pl-import-a-2641077f-1777611288666-0,a-2641077f,Personal Investment,Investment,Matthieu Duvinage,SaxoBank,2022-01-01,Personal Investment,Stocks,,,EUR,116500.0,1.0
+pl-import-a-4d3d9a37-1777611292546-0,a-4d3d9a37,Crypto,Investment,Matthieu Duvinage,Binance,2021-11-01,Crypto,Stocks,,,EUR,7000.0,1.0
+pl-import-a-052ac979-1777611285825-0,a-052ac979,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2021-11-01,Investment Portfolio,Stocks,,,EUR,828000.0,1.0
+pl-import-a-052ac979-1777611285825-1,a-052ac979,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2021-11-01,Investment e,Bonds,,,EUR,828000.0,1.0
+pl-import-a-a42eb2d9-1777611294397-0,a-a42eb2d9,Pension,Investment,Matthieu Duvinage,State,2021-11-01,Pension,Stocks,,,EUR,100000.0,1.0
+pl-import-a-6c1b5ac5-1777611289233-0,a-6c1b5ac5,Personal Investment,Investment,Matthieu Duvinage,SaxoBank,2021-11-01,Personal Investment,Stocks,,,EUR,116500.0,1.0
+pl-import-a-ef0cfc65-1777611286951-0,a-ef0cfc65,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2021-04-01,Investment Portfolio,Stocks,,,EUR,828000.0,1.0
+pl-import-a-ef0cfc65-1777611286951-1,a-ef0cfc65,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2021-04-01,Investment e,Bonds,,,EUR,828000.0,1.0
+pl-import-a-a4d0ebf5-1777611290356-0,a-a4d0ebf5,Personal Investment,Investment,Matthieu Duvinage,SaxoBank,2021-04-01,Personal Investment,Stocks,,,EUR,116500.0,1.0
+pl-import-a-e22ca8c4-1777611286165-0,a-e22ca8c4,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2020-12-27,Investment Portfolio,Stocks,,,EUR,828000.0,1.0
+pl-import-a-e22ca8c4-1777611286165-1,a-e22ca8c4,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2020-12-27,Investment e,Bonds,,,EUR,828000.0,1.0
+pl-import-a-3f4a9497-1777611289569-0,a-3f4a9497,Personal Investment,Investment,Matthieu Duvinage,SaxoBank,2020-12-27,Personal Investment,Stocks,,,EUR,116500.0,1.0
+pl-import-a-fb1f4ef2-1777611287858-0,a-fb1f4ef2,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2020-06-07,Investment Portfolio,Stocks,,,EUR,828000.0,1.0
+pl-import-a-fb1f4ef2-1777611287858-1,a-fb1f4ef2,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2020-06-07,Investment e,Bonds,,,EUR,828000.0,1.0
+pl-import-a-7e44839c-1777611291284-0,a-7e44839c,Personal Investment,Investment,Matthieu Duvinage,SaxoBank,2020-06-07,Personal Investment,Stocks,,,EUR,116500.0,1.0
+pl-import-a-8c2a660e-1777611288555-0,a-8c2a660e,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2019-09-30,Investment Portfolio,Stocks,,,EUR,828000.0,1.0
+pl-import-a-8c2a660e-1777611288555-1,a-8c2a660e,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2019-09-30,Investment e,Bonds,,,EUR,828000.0,1.0
+pl-import-a-a088436c-1777611291971-0,a-a088436c,Personal Investment,Investment,Matthieu Duvinage,SaxoBank,2019-09-30,Personal Investment,Stocks,,,EUR,116500.0,1.0
+pl-import-a-a3873168-1777611287742-0,a-a3873168,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2019-06-30,Investment Portfolio,Stocks,,,EUR,828000.0,1.0
+pl-import-a-a3873168-1777611287742-1,a-a3873168,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2019-06-30,Investment e,Bonds,,,EUR,828000.0,1.0
+pl-import-a-762c4236-1777611291148-0,a-762c4236,Personal Investment,Investment,Matthieu Duvinage,SaxoBank,2019-06-30,Personal Investment,Stocks,,,EUR,116500.0,1.0
+pl-import-a-6f1f1ffb-1777611286729-0,a-6f1f1ffb,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2019-03-30,Investment Portfolio,Stocks,,,EUR,828000.0,1.0
+pl-import-a-6f1f1ffb-1777611286729-1,a-6f1f1ffb,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2019-03-30,Investment e,Bonds,,,EUR,828000.0,1.0
+pl-import-a-7e465d56-1777611290130-0,a-7e465d56,Personal Investment,Investment,Matthieu Duvinage,SaxoBank,2019-03-30,Personal Investment,Stocks,,,EUR,116500.0,1.0
+pl-import-a-c4939a97-1777611286504-0,a-c4939a97,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2018-12-31,Investment Portfolio,Stocks,,,EUR,828000.0,1.0
+pl-import-a-c4939a97-1777611286505-1,a-c4939a97,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2018-12-31,Investment e,Bonds,,,EUR,828000.0,1.0
+pl-import-a-0d23aed6-1777611289904-0,a-0d23aed6,Personal Investment,Investment,Matthieu Duvinage,SaxoBank,2018-12-31,Personal Investment,Stocks,,,EUR,116500.0,1.0
+pl-import-a-443a9192-1777611287627-0,a-443a9192,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2018-06-30,Investment Portfolio,Stocks,,,EUR,828000.0,1.0
+pl-import-a-443a9192-1777611287627-1,a-443a9192,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2018-06-30,Investment e,Bonds,,,EUR,828000.0,1.0
+pl-import-a-bb1b5bc6-1777611291031-0,a-bb1b5bc6,Personal Investment,Investment,Matthieu Duvinage,SaxoBank,2018-06-30,Personal Investment,Stocks,,,EUR,116500.0,1.0
+pl-import-a-ba7b52e3-1777611286394-0,a-ba7b52e3,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2017-12-31,Investment Portfolio,Stocks,,,EUR,828000.0,1.0
+pl-import-a-ba7b52e3-1777611286394-1,a-ba7b52e3,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2017-12-31,Investment e,Bonds,,,EUR,828000.0,1.0
+pl-import-a-9414f134-1777611289792-0,a-9414f134,Personal Investment,Investment,Matthieu Duvinage,SaxoBank,2017-12-31,Personal Investment,Stocks,,,EUR,116500.0,1.0
+pl-import-a-2a4e6c82-1777611287514-0,a-2a4e6c82,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2017-06-30,Investment Portfolio,Stocks,,,EUR,828000.0,1.0
+pl-import-a-2a4e6c82-1777611287514-1,a-2a4e6c82,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2017-06-30,Investment e,Bonds,,,EUR,828000.0,1.0
+pl-import-a-905f6a5c-1777611290917-0,a-905f6a5c,Personal Investment,Investment,Matthieu Duvinage,SaxoBank,2017-06-30,Personal Investment,Stocks,,,EUR,116500.0,1.0
+pl-import-a-b2b686ea-1777611286840-0,a-b2b686ea,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2017-03-31,Investment Portfolio,Stocks,,,EUR,828000.0,1.0
+pl-import-a-b2b686ea-1777611286840-1,a-b2b686ea,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2017-03-31,Investment e,Bonds,,,EUR,828000.0,1.0
+pl-import-a-b7d3a495-1777611290244-0,a-b7d3a495,Personal Investment,Investment,Matthieu Duvinage,SaxoBank,2017-03-31,Personal Investment,Stocks,,,EUR,116500.0,1.0
+pl-import-a-d5faaa78-1777611286279-0,a-d5faaa78,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2016-12-31,Investment Portfolio,Stocks,,,EUR,828000.0,1.0
+pl-import-a-d5faaa78-1777611286279-1,a-d5faaa78,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2016-12-31,Investment e,Bonds,,,EUR,828000.0,1.0
+pl-import-a-bfc91b64-1777611289680-0,a-bfc91b64,Personal Investment,Investment,Matthieu Duvinage,SaxoBank,2016-12-31,Personal Investment,Stocks,,,EUR,116500.0,1.0
+pl-import-a-c38a9161-1777611288194-0,a-c38a9161,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2016-07-11,Investment Portfolio,Stocks,,,EUR,828000.0,1.0
+pl-import-a-c38a9161-1777611288194-1,a-c38a9161,Investment Portfolio,Investment,Matthieu Duvinage,Bolero,2016-07-11,Investment e,Bonds,,,EUR,828000.0,1.0
+pl-import-a-89137a4c-1777611291621-0,a-89137a4c,Personal Investment,Investment,Matthieu Duvinage,SaxoBank,2016-07-11,Personal Investment,Stocks,,,EUR,116500.0,1.0

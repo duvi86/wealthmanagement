@@ -11,7 +11,6 @@ import { SurfaceCard } from "@/components/ui/surface-card";
 import { TemporalFilter } from "@/components/ui/temporal-filter";
 import {
   byAllocationBucket,
-  byCurrency,
   computeTotals,
   formatMoney,
   toEur,
@@ -261,7 +260,85 @@ export default function WealthDashboardPage() {
     [fireTargetSeries, trendData],
   );
   const allocationData = useMemo(() => byAllocationBucket(latestDateAccounts), [latestDateAccounts]);
-  const currencyData = useMemo(() => byCurrency(latestDateAccounts), [latestDateAccounts]);
+  const marketCurrencyExposure = useMemo(() => {
+    const rows = new Map<string, { currency: string; developed: number; emerging: number; totalEur: number }>();
+
+    const normalizeMarketType = (value: string | undefined) => {
+      const normalized = (value ?? "").trim().toLowerCase();
+      if (!normalized) return "unknown" as const;
+
+      if (
+        normalized === "developed market" ||
+        normalized === "developed" ||
+        normalized === "dm" ||
+        normalized.includes("develop")
+      ) {
+        return "developed" as const;
+      }
+
+      if (
+        normalized === "emerging market" ||
+        normalized === "emerging" ||
+        normalized === "em" ||
+        normalized.includes("emerg")
+      ) {
+        return "emerging" as const;
+      }
+
+      return "unknown" as const;
+    };
+
+    const addExposure = (currency: string, marketTypeRaw: string | undefined, amountEur: number) => {
+      const marketType = normalizeMarketType(marketTypeRaw);
+      if (marketType === "unknown") {
+        return;
+      }
+      const key = currency || "Unknown";
+      const current = rows.get(key) ?? {
+        currency: key,
+        developed: 0,
+        emerging: 0,
+        totalEur: 0,
+      };
+
+      if (marketType === "developed") {
+        current.developed += amountEur;
+      } else if (marketType === "emerging") {
+        current.emerging += amountEur;
+      }
+      current.totalEur += amountEur;
+      rows.set(key, current);
+    };
+
+    latestDateAccounts.forEach((account) => {
+      if (account.type !== "Investment" && account.type !== "Private Equity") {
+        return;
+      }
+
+      if (account.portfolioLines?.length) {
+        account.portfolioLines.forEach((line) => {
+          const amountEur = Number(line.nativeAmount) * Number(line.fxToEur);
+          const marketType = (line as any).marketType ?? (line as any).market_type;
+          addExposure(String(line.currency ?? account.currency), marketType, amountEur);
+        });
+      }
+    });
+
+    const totalExposure = Array.from(rows.values()).reduce((sum, row) => sum + row.totalEur, 0);
+    const data = Array.from(rows.values())
+      .map((row) => ({
+        currency: row.currency,
+        developed: Math.round(row.developed),
+        emerging: Math.round(row.emerging),
+        totalEur: Math.round(row.totalEur),
+        pct: totalExposure > 0 ? ((row.totalEur / totalExposure) * 100).toFixed(1) : "0.0",
+      }))
+      .sort((a, b) => b.totalEur - a.totalEur);
+
+    return data.length > 0
+      ? data
+      : [{ currency: "N/A", developed: 0, emerging: 0, totalEur: 0, pct: "0.0" }];
+  }, [latestDateAccounts]);
   const liabilityData = useMemo(() => {
     const byCategory = new Map<string, number>();
 
@@ -522,15 +599,27 @@ export default function WealthDashboardPage() {
           <section className="wealth-chart-grid" aria-label="Currency and owner wealth exposure">
             <SurfaceCard>
               <div className="card-header">
-                <h3 style={{ margin: 0 }}>Native Currency Exposure</h3>
+                <h3 style={{ margin: 0 }}>Investment & Private Equity Exposure by Currency</h3>
               </div>
               <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
                 <BarChart
-                  data={currencyData}
+                  data={marketCurrencyExposure}
                   xKey="currency"
-                  yLabel="Native units"
-                  series={[{ dataKey: "amount", name: "" }]}
+                  yLabel="EUR"
+                  stacked
+                  series={[
+                    { dataKey: "developed", name: "Developed Market" },
+                    { dataKey: "emerging", name: "Emerging Market" },
+                  ]}
                   height="100%"
+                  formatValue={(v) => formatMoney(v, "EUR")}
+                  tooltipTotalKey="totalEur"
+                  tooltipTotalLabel="Currency Total"
+                  tooltipTotalFormatter={(v) => formatMoney(v, "EUR")}
+                  tooltipPercentTotalKey="totalEur"
+                  tooltipPercentLabel="Market share"
+                  tooltipShowAllSeriesPercents
+                  tooltipAllSeriesLabel="Market split"
                 />
               </div>
             </SurfaceCard>

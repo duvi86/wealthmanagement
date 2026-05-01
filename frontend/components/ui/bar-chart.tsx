@@ -92,7 +92,10 @@ function CustomTooltip({
   allSeriesLabel = "Class shares",
 }: CustomTooltipProps) {
   if (!active || !payload?.length) return null;
-  const entry = payload[0];
+  const entry = payload.find((item) => {
+    const value = Number(item.value);
+    return Number.isFinite(value) && Math.abs(value) > 0;
+  }) ?? payload[0];
   if (!entry) return null;
   const pct = (entry.payload.pct as string) || "";
   const title = titleKey ? String(entry.payload[titleKey] ?? entry.name) : entry.name;

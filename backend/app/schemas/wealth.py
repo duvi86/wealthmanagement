@@ -42,6 +42,8 @@ TaxCountry = Literal[
 class PortfolioLineBase(BaseModel):
     label: str
     allocation_bucket: AllocationBucket
+    area: Optional[str] = None
+    market_type: Optional[str] = None
     currency: SupportedCurrency = "EUR"
     native_amount: float = 0.0
     fx_to_eur: float = 1.0

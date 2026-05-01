@@ -34,6 +34,8 @@ def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     _ensure_wealth_account_expected_return_column()
     _ensure_wealth_portfolio_line_expected_return_column()
+    _ensure_wealth_portfolio_line_area_column()
+    _ensure_wealth_portfolio_line_market_type_column()
 
 
 def _ensure_wealth_account_expected_return_column() -> None:
@@ -64,3 +66,33 @@ def _ensure_wealth_portfolio_line_expected_return_column() -> None:
 
     with engine.begin() as conn:
         conn.execute(text("ALTER TABLE wealth_portfolio_lines ADD COLUMN expected_return_pct FLOAT NOT NULL DEFAULT 0.0"))
+
+
+def _ensure_wealth_portfolio_line_area_column() -> None:
+    """Backfill schema drift for portfolio line area metadata when Alembic is not applied."""
+    inspector = inspect(engine)
+    try:
+        columns = {col["name"] for col in inspector.get_columns("wealth_portfolio_lines")}
+    except Exception:
+        return
+
+    if "area" in columns:
+        return
+
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE wealth_portfolio_lines ADD COLUMN area VARCHAR"))
+
+
+def _ensure_wealth_portfolio_line_market_type_column() -> None:
+    """Backfill schema drift for portfolio line market_type metadata when Alembic is not applied."""
+    inspector = inspect(engine)
+    try:
+        columns = {col["name"] for col in inspector.get_columns("wealth_portfolio_lines")}
+    except Exception:
+        return
+
+    if "market_type" in columns:
+        return
+
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE wealth_portfolio_lines ADD COLUMN market_type VARCHAR"))
