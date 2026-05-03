@@ -291,10 +291,11 @@ function buildAccountsRegistrySnapshot(accounts: Account[]): RegistrySnapshot {
   >();
 
   const dateColumns = Array.from(
-    new Set([
-      ...WEALTH_IMPORT_TEMPLATE_DATE_COLUMNS,
-      ...accounts.map((account) => account.updatedAt).filter((date): date is string => Boolean(date)),
-    ]),
+    new Set(
+      accounts
+        .map((account) => account.updatedAt)
+        .filter((date): date is string => Boolean(date)),
+    ),
   ).sort();
 
   accounts.forEach((account) => {
@@ -424,6 +425,9 @@ function buildAccountsWorkbook(accounts: Account[]) {
 
       const dateCells = row.isMortgageLoan && row.mortgage
         ? snapshot.dateColumns.map((dateColumn) => {
+            if (!row.balancesByDate.has(dateColumn)) {
+              return "";
+            }
             const remaining = computeAmortizedBalance(
               row.mortgage!.principal,
               row.mortgage!.annualRatePct,
@@ -1749,7 +1753,7 @@ export default function WealthAccountsPage() {
             eligibleAccounts[0]);
 
             for (const linkedAccount of eligibleAccounts) {
-              let portfolioLines: typeof importedLineBlueprints;
+              let portfolioLines: Array<(typeof importedLineBlueprints)[number] & { id: string }>;
               if (linkedAccount.id === latestAccount.id) {
                 // Latest snapshot → full detail
                 portfolioLines = importedLineBlueprints.map((line, index) => ({

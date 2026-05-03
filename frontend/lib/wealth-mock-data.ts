@@ -376,30 +376,55 @@ export function byType(accounts: Account[]) {
 }
 
 export function byAllocationBucket(accounts: Account[]) {
+  const resolveBucket = (account: Account, line?: PortfolioLine): string => {
+    const rawBucket = line?.allocationBucket ?? account.allocationBucket;
+    const rawLabel = line?.label ?? account.accountName;
+    const isReitLabel = /\breit\b/i.test(rawLabel ?? "");
+    const isCommodityLabel = /\b(commodity|commodities|gold|silver|platinum|palladium|oil|brent|wti|gas|natural gas|copper)\b/i.test(rawLabel ?? "");
+
+    if (rawBucket === "REIT") {
+      return "REIT";
+    }
+    if (rawBucket === "Commodities") {
+      return "Commodities";
+    }
+    if (rawBucket === "Stocks" && isReitLabel) {
+      return "REIT";
+    }
+    if (rawBucket === "Stocks" && isCommodityLabel) {
+      return "Commodities";
+    }
+    if (account.type === "Property") {
+      return "Real Estate";
+    }
+    if (rawBucket) {
+      return rawBucket;
+    }
+
+    return account.type === "Investment"
+      ? "Stocks"
+      : account.type === "Private Equity"
+        ? "Private Equity"
+        : account.type === "Cryptocurrency"
+          ? "Crypto"
+          : account.type === "Savings"
+            ? "Savings"
+            : "Cash";
+  };
+
   const map = new Map<string, number>();
   accounts.forEach((account) => {
     if (account.portfolioLines?.length) {
       account.portfolioLines.forEach((line) => {
-        const current = map.get(line.allocationBucket) ?? 0;
-        map.set(line.allocationBucket, current + line.nativeAmount * line.fxToEur);
+        const bucket = resolveBucket(account, line);
+        const current = map.get(bucket) ?? 0;
+        map.set(bucket, current + line.nativeAmount * line.fxToEur);
       });
       return;
     }
 
     if (account.nativeBalance <= 0) return;
-    const key =
-      account.allocationBucket ??
-      (account.type === "Investment"
-        ? "Stocks"
-        : account.type === "Private Equity"
-          ? "Private Equity"
-          : account.type === "Property"
-            ? "Real Estate"
-            : account.type === "Cryptocurrency"
-              ? "Crypto"
-              : account.type === "Savings"
-                ? "Savings"
-                : "Cash");
+    const key = resolveBucket(account);
     const current = map.get(key) ?? 0;
     map.set(key, current + toEur(account));
   });

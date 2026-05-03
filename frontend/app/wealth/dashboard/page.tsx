@@ -15,6 +15,7 @@ import {
   formatMoney,
   toEur,
   type MonthlyNetWorth,
+  type SupportedCurrency,
   wealthProfile,
   type Account,
 } from "@/lib/wealth-mock-data";
@@ -22,6 +23,10 @@ import { Skeleton } from "@/components/ui/loading";
 import { useWealthAccounts, useWealthFireScenarios, type WealthFireScenario } from "@/hooks/use-api";
 
 type TrendResolution = "monthly" | "quarterly" | "yearly";
+type MarketGroup = "Developed" | "Emerging" | "Unclassified";
+
+const JOINT_MARKET_ORDER: MarketGroup[] = ["Developed", "Emerging", "Unclassified"];
+const JOINT_CURRENCY_ORDER: SupportedCurrency[] = ["EUR", "USD", "CHF"];
 
 const FIRE_TARGET_COLORS = [
   "var(--color-chart-series-6)",
@@ -149,6 +154,58 @@ function aggregateTrendByResolution(
   return Array.from(grouped.values()).sort((a, b) => a.period.localeCompare(b.period));
 }
 
+function normalizeMarketType(value: string | undefined): MarketGroup {
+  const normalized = (value ?? "").trim().toLowerCase();
+  if (!normalized) return "Unclassified";
+
+  if (
+    normalized === "developed market" ||
+    normalized === "developed" ||
+    normalized === "dm" ||
+    normalized.includes("develop")
+  ) {
+    return "Developed";
+  }
+
+  if (
+    normalized === "emerging market" ||
+    normalized === "emerging" ||
+    normalized === "em" ||
+    normalized.includes("emerg")
+  ) {
+    return "Emerging";
+  }
+
+  return "Unclassified";
+}
+
+function resolveAllocationBucketForJoint(account: Account, line?: NonNullable<Account["portfolioLines"]>[number]): string {
+  const rawBucket = line?.allocationBucket ?? account.allocationBucket;
+  const rawLabel = line?.label ?? account.accountName;
+  const isReitLabel = /\breit\b/i.test(rawLabel ?? "");
+  const isCommodityLabel =
+    /\b(commodity|commodities|gold|silver|platinum|palladium|oil|brent|wti|gas|natural gas|copper)\b/i.test(
+      rawLabel ?? "",
+    );
+
+  if (rawBucket === "REIT") return "REIT";
+  if (rawBucket === "Commodities") return "Commodities";
+  if (rawBucket === "Stocks" && isReitLabel) return "REIT";
+  if (rawBucket === "Stocks" && isCommodityLabel) return "Commodities";
+  if (account.type === "Property") return "Real Estate";
+  if (rawBucket) return rawBucket;
+
+  return account.type === "Investment"
+    ? "Stocks"
+    : account.type === "Private Equity"
+      ? "Private Equity"
+      : account.type === "Cryptocurrency"
+        ? "Crypto"
+        : account.type === "Savings"
+          ? "Savings"
+          : "Cash";
+}
+
 export default function WealthDashboardPage() {
   const { data: rawAccounts = [], isLoading: accountsLoading, isError: accountsError } = useWealthAccounts();
   const { data: rawFireScenarios = [] } = useWealthFireScenarios();
@@ -260,84 +317,119 @@ export default function WealthDashboardPage() {
     [fireTargetSeries, trendData],
   );
   const allocationData = useMemo(() => byAllocationBucket(latestDateAccounts), [latestDateAccounts]);
-  const marketCurrencyExposure = useMemo(() => {
-    const rows = new Map<string, { currency: string; developed: number; emerging: number; totalEur: number }>();
+  const jointExposure = useMemo(() => {
+    const matrix = new Map<string, Map<string, number>>();
+    const dynamicColumns = new Set<string>();
 
-    const normalizeMarketType = (value: string | undefined) => {
-      const normalized = (value ?? "").trim().toLowerCase();
-      if (!normalized) return "unknown" as const;
+    const addValue = (assetClass: string, market: MarketGroup, currency: string, amountEur: number) => {
+      if (amountEur <= 0) return;
+      const normalizedCurrency = (currency || "Unknown").toUpperCase();
+      const column = `${market}-${normalizedCurrency}`;
+      dynamicColumns.add(column);
 
-      if (
-        normalized === "developed market" ||
-        normalized === "developed" ||
-        normalized === "dm" ||
-        normalized.includes("develop")
-      ) {
-        return "developed" as const;
-      }
-
-      if (
-        normalized === "emerging market" ||
-        normalized === "emerging" ||
-        normalized === "em" ||
-        normalized.includes("emerg")
-      ) {
-        return "emerging" as const;
-      }
-
-      return "unknown" as const;
-    };
-
-    const addExposure = (currency: string, marketTypeRaw: string | undefined, amountEur: number) => {
-      const marketType = normalizeMarketType(marketTypeRaw);
-      if (marketType === "unknown") {
-        return;
-      }
-      const key = currency || "Unknown";
-      const current = rows.get(key) ?? {
-        currency: key,
-        developed: 0,
-        emerging: 0,
-        totalEur: 0,
-      };
-
-      if (marketType === "developed") {
-        current.developed += amountEur;
-      } else if (marketType === "emerging") {
-        current.emerging += amountEur;
-      }
-      current.totalEur += amountEur;
-      rows.set(key, current);
+      const row = matrix.get(assetClass) ?? new Map<string, number>();
+      row.set(column, (row.get(column) ?? 0) + amountEur);
+      matrix.set(assetClass, row);
     };
 
     latestDateAccounts.forEach((account) => {
-      if (account.type !== "Investment" && account.type !== "Private Equity" && account.type !== "Property") {
+      if (account.type === "Loan") {
         return;
       }
 
       if (account.portfolioLines?.length) {
         account.portfolioLines.forEach((line) => {
           const amountEur = Number(line.nativeAmount) * Number(line.fxToEur);
-          const marketType = (line as any).marketType ?? (line as any).market_type;
-          addExposure(String(line.currency ?? account.currency), marketType, amountEur);
+          const bucket = resolveAllocationBucketForJoint(account, line);
+          const marketType = (line as { marketType?: string; market_type?: string }).marketType
+            ?? (line as { marketType?: string; market_type?: string }).market_type;
+          addValue(bucket, normalizeMarketType(marketType), String(line.currency ?? account.currency), amountEur);
         });
+        return;
       }
+
+      const amountEur = toEur(account);
+      if (amountEur <= 0) {
+        return;
+      }
+      const bucket = resolveAllocationBucketForJoint(account);
+      addValue(bucket, "Unclassified", String(account.currency), amountEur);
     });
 
-    const totalExposure = Array.from(rows.values()).reduce((sum, row) => sum + row.totalEur, 0);
-    const data = Array.from(rows.values())
-      .map((row) => ({
-        currency: row.currency,
-        developed: Math.round(row.developed),
-        emerging: Math.round(row.emerging),
-        totalEur: Math.round(row.totalEur),
-        pct: totalExposure > 0 ? ((row.totalEur / totalExposure) * 100).toFixed(1) : "0.0",
-      }))
-      .sort((a, b) => b.totalEur - a.totalEur);
+    const orderedBaseColumns = JOINT_MARKET_ORDER.flatMap((market) =>
+      JOINT_CURRENCY_ORDER.map((currency) => `${market}-${currency}`),
+    );
+    const extraColumns = Array.from(dynamicColumns)
+      .filter((column) => !orderedBaseColumns.includes(column))
+      .sort((a, b) => a.localeCompare(b));
+    const columns = [...orderedBaseColumns, ...extraColumns].filter((column) => dynamicColumns.has(column));
 
-    return data.length > 0
-      ? data
-      : [{ currency: "N/A", developed: 0, emerging: 0, totalEur: 0, pct: "0.0" }];
+    const rowTotals = new Map<string, number>();
+    matrix.forEach((row, assetClass) => {
+      const total = Array.from(row.values()).reduce((sum, value) => sum + value, 0);
+      rowTotals.set(assetClass, total);
+    });
+
+    const totalEur = Array.from(rowTotals.values()).reduce((sum, value) => sum + value, 0);
+    const activeRows = Array.from(matrix.keys());
+    const expectedCellPct = activeRows.length > 0 && columns.length > 0 ? 100 / (activeRows.length * columns.length) : 0;
+
+    const rows = activeRows
+      .map((assetClass) => {
+        const row = matrix.get(assetClass) ?? new Map<string, number>();
+        const rowTotalEur = rowTotals.get(assetClass) ?? 0;
+        const cells = columns.map((column) => {
+          const amountEur = row.get(column) ?? 0;
+          const pct = totalEur > 0 ? (amountEur / totalEur) * 100 : 0;
+          const deviationPct = pct - expectedCellPct;
+          return {
+            column,
+            amountEur,
+            pct,
+            expectedPct: expectedCellPct,
+            deviationPct,
+            absDeviationPct: Math.abs(deviationPct),
+          };
+        });
+
+        return {
+          assetClass,
+          rowTotalEur,
+          rowPct: totalEur > 0 ? (rowTotalEur / totalEur) * 100 : 0,
+          cells,
+        };
+      })
+      .sort((a, b) => b.rowTotalEur - a.rowTotalEur);
+
+    const maxCellPct = rows.flatMap((row) => row.cells.map((cell) => cell.pct)).reduce((max, value) => Math.max(max, value), 0);
+
+    const topImbalances = rows
+      .flatMap((row) =>
+        row.cells.map((cell) => ({
+          assetClass: row.assetClass,
+          column: cell.column,
+          deviationPct: cell.deviationPct,
+          absDeviationPct: cell.absDeviationPct,
+        })),
+      )
+      .filter((item) => item.absDeviationPct > 0.1)
+      .sort((a, b) => b.absDeviationPct - a.absDeviationPct)
+      .slice(0, 3);
+
+    const scorePenalty = rows
+      .flatMap((row) => row.cells.map((cell) => cell.absDeviationPct))
+      .reduce((sum, value) => sum + value, 0);
+    const score = Math.max(0, Math.min(100, Math.round(100 - scorePenalty)));
+
+    return {
+      columns,
+      rows,
+      totalEur,
+      expectedCellPct,
+      maxCellPct,
+      score,
+      topImbalances,
+    };
   }, [latestDateAccounts]);
   const liabilityData = useMemo(() => {
     const byCategory = new Map<string, number>();
@@ -599,28 +691,123 @@ export default function WealthDashboardPage() {
           <section className="wealth-chart-grid" aria-label="Currency and owner wealth exposure">
             <SurfaceCard>
               <div className="card-header">
-                <h3 style={{ margin: 0 }}>Market Exposure by Currency</h3>
+                <h3 style={{ margin: 0 }}>Joint Exposure: Asset x Market x Currency</h3>
               </div>
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
-                <BarChart
-                  data={marketCurrencyExposure}
-                  xKey="currency"
-                  yLabel="EUR"
-                  stacked
-                  series={[
-                    { dataKey: "developed", name: "Developed Market" },
-                    { dataKey: "emerging", name: "Emerging Market" },
-                  ]}
-                  height="100%"
-                  formatValue={(v) => formatMoney(v, "EUR")}
-                  tooltipTotalKey="totalEur"
-                  tooltipTotalLabel="Currency Total"
-                  tooltipTotalFormatter={(v) => formatMoney(v, "EUR")}
-                  tooltipPercentTotalKey="totalEur"
-                  tooltipPercentLabel="Market share"
-                  tooltipShowAllSeriesPercents
-                  tooltipAllSeriesLabel="Market split"
-                />
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, gap: 12 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 12,
+                    alignItems: "center",
+                    fontSize: 12,
+                    color: "var(--color-text-subtle)",
+                  }}
+                >
+                  <span>
+                    Balance score: <strong style={{ color: "var(--color-text-default)" }}>{jointExposure.score}/100</strong>
+                  </span>
+                  <span>
+                    Expected cell share: <strong style={{ color: "var(--color-text-default)" }}>{jointExposure.expectedCellPct.toFixed(1)}%</strong>
+                  </span>
+                  <span>
+                    Tracked exposure: <strong style={{ color: "var(--color-text-default)" }}>{formatMoney(jointExposure.totalEur, "EUR")}</strong>
+                  </span>
+                </div>
+
+                <div style={{ overflowX: "auto", border: "1px solid var(--color-stroke-primary)", borderRadius: 8 }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 720 }}>
+                    <thead>
+                      <tr>
+                        <th
+                          style={{
+                            textAlign: "left",
+                            padding: "8px 10px",
+                            fontSize: 12,
+                            borderBottom: "1px solid var(--color-stroke-primary)",
+                            background: "var(--color-surface-secondary)",
+                            position: "sticky",
+                            left: 0,
+                            zIndex: 2,
+                          }}
+                        >
+                          Asset Class
+                        </th>
+                        {jointExposure.columns.map((column) => (
+                          <th
+                            key={column}
+                            style={{
+                              textAlign: "center",
+                              padding: "8px 10px",
+                              fontSize: 11,
+                              borderBottom: "1px solid var(--color-stroke-primary)",
+                              background: "var(--color-surface-secondary)",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {column}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {jointExposure.rows.map((row) => (
+                        <tr key={row.assetClass}>
+                          <th
+                            style={{
+                              textAlign: "left",
+                              padding: "8px 10px",
+                              fontSize: 12,
+                              borderBottom: "1px solid var(--color-stroke-primary)",
+                              background: "var(--color-surface-primary)",
+                              position: "sticky",
+                              left: 0,
+                              zIndex: 1,
+                            }}
+                            title={`${formatMoney(row.rowTotalEur, "EUR")} (${row.rowPct.toFixed(1)}% of tracked exposure)`}
+                          >
+                            {row.assetClass}
+                          </th>
+                          {row.cells.map((cell) => {
+                            const ratio = jointExposure.maxCellPct > 0 ? cell.pct / jointExposure.maxCellPct : 0;
+                            const alpha = Math.min(0.85, 0.08 + ratio * 0.72);
+                            const bgColor = `rgba(32, 120, 214, ${alpha.toFixed(3)})`;
+                            const fgColor = alpha >= 0.45 ? "#ffffff" : "var(--color-text-default)";
+                            const deviationFlag =
+                              cell.absDeviationPct >= 4 ? " !!" : cell.absDeviationPct >= 2 ? " !" : "";
+
+                            return (
+                              <td
+                                key={`${row.assetClass}-${cell.column}`}
+                                style={{
+                                  textAlign: "center",
+                                  padding: "8px 10px",
+                                  fontSize: 11,
+                                  borderBottom: "1px solid var(--color-stroke-primary)",
+                                  background: bgColor,
+                                  color: fgColor,
+                                  whiteSpace: "nowrap",
+                                }}
+                                title={`${row.assetClass} / ${cell.column}\nAmount: ${formatMoney(cell.amountEur, "EUR")}\nActual: ${cell.pct.toFixed(1)}%\nExpected: ${cell.expectedPct.toFixed(1)}%\nDeviation: ${cell.deviationPct >= 0 ? "+" : ""}${cell.deviationPct.toFixed(1)}%`}
+                              >
+                                {cell.pct.toFixed(1)}%{deviationFlag}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div style={{ fontSize: 12, color: "var(--color-text-subtle)" }}>
+                  <strong style={{ color: "var(--color-text-default)" }}>Top imbalances:</strong>{" "}
+                  {jointExposure.topImbalances.length > 0
+                    ? jointExposure.topImbalances
+                        .map((item) => `${item.assetClass} / ${item.column} (${item.deviationPct >= 0 ? "+" : ""}${item.deviationPct.toFixed(1)}%)`)
+                        .join("; ")
+                    : "No significant imbalance detected."}
+                </div>
               </div>
             </SurfaceCard>
 
