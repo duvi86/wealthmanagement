@@ -362,7 +362,7 @@ export default function WealthDashboardPage() {
     const extraColumns = Array.from(dynamicColumns)
       .filter((column) => !orderedBaseColumns.includes(column))
       .sort((a, b) => a.localeCompare(b));
-    const columns = [...orderedBaseColumns, ...extraColumns].filter((column) => dynamicColumns.has(column));
+    const columns = [...orderedBaseColumns, ...extraColumns];
 
     const rowTotals = new Map<string, number>();
     matrix.forEach((row, assetClass) => {
@@ -731,10 +731,39 @@ export default function WealthDashboardPage() {
                   ) : (
                     <>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 8, fontSize: 11 }}>
-                        <span style={{ padding: "3px 8px", borderRadius: 999, background: "var(--color-surface-success-primary)", color: "var(--color-text-success-on-primary)", border: "1px solid var(--color-stroke-success)" }}>Success</span>
-                        <span style={{ padding: "3px 8px", borderRadius: 999, background: "var(--color-surface-info-primary)", color: "var(--color-text-info-on-primary)", border: "1px solid var(--color-stroke-info)" }}>Information</span>
-                        <span style={{ padding: "3px 8px", borderRadius: 999, background: "var(--color-surface-warning-primary)", color: "var(--color-text-warning-on-primary)", border: "1px solid var(--color-stroke-warning)" }}>Warning</span>
-                        <span style={{ padding: "3px 8px", borderRadius: 999, background: "var(--color-surface-error-primary)", color: "var(--color-text-error-on-primary)", border: "1px solid var(--color-stroke-error)" }}>Failure</span>
+                        <span
+                          style={{
+                            padding: "3px 8px",
+                            borderRadius: 999,
+                            background: "var(--color-surface-success-primary)",
+                            color: "var(--color-text-success-on-primary)",
+                            border: "1px solid var(--color-stroke-success)",
+                          }}
+                        >
+                          &lt; 10%
+                        </span>
+                        <span
+                          style={{
+                            padding: "3px 8px",
+                            borderRadius: 999,
+                            background: "var(--color-surface-warning-primary)",
+                            color: "var(--color-text-warning-on-primary)",
+                            border: "1px solid var(--color-stroke-warning)",
+                          }}
+                        >
+                          10-15%
+                        </span>
+                        <span
+                          style={{
+                            padding: "3px 8px",
+                            borderRadius: 999,
+                            background: "var(--color-surface-error-primary)",
+                            color: "var(--color-text-error-on-primary)",
+                            border: "1px solid var(--color-stroke-error)",
+                          }}
+                        >
+                          &gt; 15%
+                        </span>
                       </div>
                       <div
                         style={{
@@ -795,29 +824,23 @@ export default function WealthDashboardPage() {
                             {row.cells.map((cell) => {
                               const absDeviation = cell.absDeviationPct;
                               const severity =
-                                absDeviation < 1
+                                absDeviation <= 10
                                   ? {
                                       bg: "var(--color-surface-success-primary)",
                                       text: "var(--color-text-success-on-primary)",
                                       border: "var(--color-stroke-success)",
                                     }
-                                  : absDeviation < 3
+                                  : absDeviation <= 15
                                     ? {
-                                        bg: "var(--color-surface-info-primary)",
-                                        text: "var(--color-text-info-on-primary)",
-                                        border: "var(--color-stroke-info)",
+                                        bg: "var(--color-surface-warning-primary)",
+                                        text: "var(--color-text-warning-on-primary)",
+                                        border: "var(--color-stroke-warning)",
                                       }
-                                    : absDeviation < 6
-                                      ? {
-                                          bg: "var(--color-surface-warning-primary)",
-                                          text: "var(--color-text-warning-on-primary)",
-                                          border: "var(--color-stroke-warning)",
-                                        }
-                                      : {
-                                          bg: "var(--color-surface-error-primary)",
-                                          text: "var(--color-text-error-on-primary)",
-                                          border: "var(--color-stroke-error)",
-                                        };
+                                    : {
+                                        bg: "var(--color-surface-error-primary)",
+                                        text: "var(--color-text-error-on-primary)",
+                                        border: "var(--color-stroke-error)",
+                                      };
 
                               return (
                                 <div
