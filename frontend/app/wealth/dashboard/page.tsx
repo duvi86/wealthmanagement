@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { BarChart } from "@/components/ui/bar-chart";
 import { EmptyState } from "@/components/ui/empty-state";
 import { KpiCard } from "@/components/ui/kpi-card";
@@ -356,8 +356,12 @@ export default function WealthDashboardPage() {
       addValue(bucket, "Developed", String(account.currency), amountEur);
     });
 
+    // Determine which currencies to include: EUR & USD always, CHF only if data exists
+    const hasCHFData = Array.from(dynamicColumns).some((col) => col.includes("CHF"));
+    const currenciesToInclude = hasCHFData ? ["EUR", "USD", "CHF"] : ["EUR", "USD"];
+
     const orderedBaseColumns = JOINT_MARKET_ORDER.flatMap((market) =>
-      JOINT_CURRENCY_ORDER.map((currency) => `${market}-${currency}`),
+      currenciesToInclude.map((currency) => `${market}-${currency}`),
     );
     const extraColumns = Array.from(dynamicColumns)
       .filter((column) => !orderedBaseColumns.includes(column))
@@ -416,10 +420,18 @@ export default function WealthDashboardPage() {
       .sort((a, b) => b.absDeviationPct - a.absDeviationPct)
       .slice(0, 3);
 
-    const scorePenalty = rows
-      .flatMap((row) => row.cells.map((cell) => cell.absDeviationPct))
-      .reduce((sum, value) => sum + value, 0);
-    const score = Math.max(0, Math.min(100, Math.round(100 - scorePenalty)));
+    // Normalized weighted absolute deviation from target cell shares.
+    // D = (1/100) * sum_i |p_i - t_i|, score = 100 * (1 - D), clamped to [0, 100].
+    const allAbsDeviations = rows.flatMap((row) => row.cells.map((cell) => cell.absDeviationPct));
+    const normalizedDeviation = allAbsDeviations.reduce((sum, value) => sum + value, 0) / 100;
+    const score = Math.max(0, Math.min(100, Math.round(100 * (1 - normalizedDeviation))));
+
+    // Calculate dynamic severity thresholds by dividing range into 3 equal zones
+    const minDeviation = Math.min(...allAbsDeviations, 0);
+    const maxDeviation = Math.max(...allAbsDeviations, 1);
+    const range = maxDeviation - minDeviation;
+    const thresholdSuccess = minDeviation + range / 3;
+    const thresholdWarning = minDeviation + (2 * range) / 3;
 
     return {
       columns,
@@ -429,6 +441,8 @@ export default function WealthDashboardPage() {
       maxCellPct,
       score,
       topImbalances,
+      thresholdSuccess,
+      thresholdWarning,
     };
   }, [latestDateAccounts]);
   const liabilityData = useMemo(() => {
@@ -740,7 +754,7 @@ export default function WealthDashboardPage() {
                             border: "1px solid var(--color-stroke-success)",
                           }}
                         >
-                          &lt; 10%
+                          ≤ {jointExposure.thresholdSuccess.toFixed(1)}%
                         </span>
                         <span
                           style={{
@@ -751,7 +765,7 @@ export default function WealthDashboardPage() {
                             border: "1px solid var(--color-stroke-warning)",
                           }}
                         >
-                          10-15%
+                          {jointExposure.thresholdSuccess.toFixed(1)}%-{jointExposure.thresholdWarning.toFixed(1)}%
                         </span>
                         <span
                           style={{
@@ -762,7 +776,7 @@ export default function WealthDashboardPage() {
                             border: "1px solid var(--color-stroke-error)",
                           }}
                         >
-                          &gt; 15%
+                          &gt; {jointExposure.thresholdWarning.toFixed(1)}%
                         </span>
                       </div>
                       <div
@@ -801,9 +815,8 @@ export default function WealthDashboardPage() {
                         ))}
 
                         {jointExposure.rows.map((row) => (
-                          <>
+                          <Fragment key={row.assetClass}>
                             <div
-                              key={`${row.assetClass}-label`}
                               style={{
                                 padding: "8px",
                                 borderRadius: 8,
@@ -824,13 +837,13 @@ export default function WealthDashboardPage() {
                             {row.cells.map((cell) => {
                               const absDeviation = cell.absDeviationPct;
                               const severity =
-                                absDeviation <= 10
+                                absDeviation <= jointExposure.thresholdSuccess
                                   ? {
                                       bg: "var(--color-surface-success-primary)",
                                       text: "var(--color-text-success-on-primary)",
                                       border: "var(--color-stroke-success)",
                                     }
-                                  : absDeviation <= 15
+                                  : absDeviation <= jointExposure.thresholdWarning
                                     ? {
                                         bg: "var(--color-surface-warning-primary)",
                                         text: "var(--color-text-warning-on-primary)",
@@ -865,7 +878,7 @@ export default function WealthDashboardPage() {
                                 </div>
                               );
                             })}
-                          </>
+                          </Fragment>
                         ))}
                       </div>
                     </>
