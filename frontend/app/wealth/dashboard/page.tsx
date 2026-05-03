@@ -23,9 +23,9 @@ import { Skeleton } from "@/components/ui/loading";
 import { useWealthAccounts, useWealthFireScenarios, type WealthFireScenario } from "@/hooks/use-api";
 
 type TrendResolution = "monthly" | "quarterly" | "yearly";
-type MarketGroup = "Developed" | "Emerging" | "Unclassified";
+type MarketGroup = "Developed" | "Emerging";
 
-const JOINT_MARKET_ORDER: MarketGroup[] = ["Developed", "Emerging", "Unclassified"];
+const JOINT_MARKET_ORDER: MarketGroup[] = ["Developed", "Emerging"];
 const JOINT_CURRENCY_ORDER: SupportedCurrency[] = ["EUR", "USD", "CHF"];
 
 const FIRE_TARGET_COLORS = [
@@ -156,7 +156,7 @@ function aggregateTrendByResolution(
 
 function normalizeMarketType(value: string | undefined): MarketGroup {
   const normalized = (value ?? "").trim().toLowerCase();
-  if (!normalized) return "Unclassified";
+  if (!normalized) return "Developed";
 
   if (
     normalized === "developed market" ||
@@ -176,7 +176,7 @@ function normalizeMarketType(value: string | undefined): MarketGroup {
     return "Emerging";
   }
 
-  return "Unclassified";
+  return "Developed";
 }
 
 function resolveAllocationBucketForJoint(account: Account, line?: NonNullable<Account["portfolioLines"]>[number]): string {
@@ -353,7 +353,7 @@ export default function WealthDashboardPage() {
         return;
       }
       const bucket = resolveAllocationBucketForJoint(account);
-      addValue(bucket, "Unclassified", String(account.currency), amountEur);
+      addValue(bucket, "Developed", String(account.currency), amountEur);
     });
 
     const orderedBaseColumns = JOINT_MARKET_ORDER.flatMap((market) =>
@@ -715,89 +715,138 @@ export default function WealthDashboardPage() {
                   </span>
                 </div>
 
-                <div style={{ overflowX: "auto", border: "1px solid var(--color-stroke-primary)", borderRadius: 8 }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 720 }}>
-                    <thead>
-                      <tr>
-                        <th
+                <div
+                  style={{
+                    border: "1px solid var(--color-stroke-primary)",
+                    borderRadius: 10,
+                    padding: 10,
+                    background:
+                      "linear-gradient(180deg, color-mix(in srgb, var(--color-surface-secondary) 45%, transparent), var(--color-surface-primary))",
+                  }}
+                >
+                  {jointExposure.columns.length === 0 || jointExposure.rows.length === 0 ? (
+                    <p style={{ margin: 0, fontSize: 12, color: "var(--color-text-subtle)" }}>
+                      No joint exposure data available.
+                    </p>
+                  ) : (
+                    <>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 8, fontSize: 11 }}>
+                        <span style={{ padding: "3px 8px", borderRadius: 999, background: "var(--color-surface-success-primary)", color: "var(--color-text-success-on-primary)", border: "1px solid var(--color-stroke-success)" }}>Success</span>
+                        <span style={{ padding: "3px 8px", borderRadius: 999, background: "var(--color-surface-info-primary)", color: "var(--color-text-info-on-primary)", border: "1px solid var(--color-stroke-info)" }}>Information</span>
+                        <span style={{ padding: "3px 8px", borderRadius: 999, background: "var(--color-surface-warning-primary)", color: "var(--color-text-warning-on-primary)", border: "1px solid var(--color-stroke-warning)" }}>Warning</span>
+                        <span style={{ padding: "3px 8px", borderRadius: 999, background: "var(--color-surface-error-primary)", color: "var(--color-text-error-on-primary)", border: "1px solid var(--color-stroke-error)" }}>Failure</span>
+                      </div>
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: `minmax(130px, 1.35fr) repeat(${jointExposure.columns.length}, minmax(0, 1fr))`,
+                          gap: 6,
+                          alignItems: "stretch",
+                        }}
+                      >
+                        <div
                           style={{
-                            textAlign: "left",
-                            padding: "8px 10px",
-                            fontSize: 12,
-                            borderBottom: "1px solid var(--color-stroke-primary)",
+                            padding: "6px 8px",
+                            borderRadius: 8,
                             background: "var(--color-surface-secondary)",
-                            position: "sticky",
-                            left: 0,
-                            zIndex: 2,
+                            fontSize: 11,
+                            fontFamily: "var(--font-semibold)",
                           }}
                         >
                           Asset Class
-                        </th>
+                        </div>
                         {jointExposure.columns.map((column) => (
-                          <th
+                          <div
                             key={column}
                             style={{
-                              textAlign: "center",
-                              padding: "8px 10px",
-                              fontSize: 11,
-                              borderBottom: "1px solid var(--color-stroke-primary)",
+                              padding: "6px 4px",
+                              borderRadius: 8,
                               background: "var(--color-surface-secondary)",
-                              whiteSpace: "nowrap",
+                              fontSize: 10,
+                              textAlign: "center",
+                              lineHeight: 1.2,
                             }}
                           >
                             {column}
-                          </th>
+                          </div>
                         ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {jointExposure.rows.map((row) => (
-                        <tr key={row.assetClass}>
-                          <th
-                            style={{
-                              textAlign: "left",
-                              padding: "8px 10px",
-                              fontSize: 12,
-                              borderBottom: "1px solid var(--color-stroke-primary)",
-                              background: "var(--color-surface-primary)",
-                              position: "sticky",
-                              left: 0,
-                              zIndex: 1,
-                            }}
-                            title={`${formatMoney(row.rowTotalEur, "EUR")} (${row.rowPct.toFixed(1)}% of tracked exposure)`}
-                          >
-                            {row.assetClass}
-                          </th>
-                          {row.cells.map((cell) => {
-                            const ratio = jointExposure.maxCellPct > 0 ? cell.pct / jointExposure.maxCellPct : 0;
-                            const alpha = Math.min(0.85, 0.08 + ratio * 0.72);
-                            const bgColor = `rgba(32, 120, 214, ${alpha.toFixed(3)})`;
-                            const fgColor = alpha >= 0.45 ? "#ffffff" : "var(--color-text-default)";
-                            const deviationFlag =
-                              cell.absDeviationPct >= 4 ? " !!" : cell.absDeviationPct >= 2 ? " !" : "";
 
-                            return (
-                              <td
-                                key={`${row.assetClass}-${cell.column}`}
-                                style={{
-                                  textAlign: "center",
-                                  padding: "8px 10px",
-                                  fontSize: 11,
-                                  borderBottom: "1px solid var(--color-stroke-primary)",
-                                  background: bgColor,
-                                  color: fgColor,
-                                  whiteSpace: "nowrap",
-                                }}
-                                title={`${row.assetClass} / ${cell.column}\nAmount: ${formatMoney(cell.amountEur, "EUR")}\nActual: ${cell.pct.toFixed(1)}%\nExpected: ${cell.expectedPct.toFixed(1)}%\nDeviation: ${cell.deviationPct >= 0 ? "+" : ""}${cell.deviationPct.toFixed(1)}%`}
-                              >
-                                {cell.pct.toFixed(1)}%{deviationFlag}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                        {jointExposure.rows.map((row) => (
+                          <>
+                            <div
+                              key={`${row.assetClass}-label`}
+                              style={{
+                                padding: "8px",
+                                borderRadius: 8,
+                                border: "1px solid var(--color-stroke-primary)",
+                                fontSize: 12,
+                                background: "var(--color-surface-primary)",
+                                display: "flex",
+                                flexDirection: "column",
+                                justifyContent: "center",
+                                gap: 2,
+                              }}
+                              title={`${formatMoney(row.rowTotalEur, "EUR")} (${row.rowPct.toFixed(1)}% of tracked exposure)`}
+                            >
+                              <span style={{ fontFamily: "var(--font-semibold)" }}>{row.assetClass}</span>
+                              <span style={{ color: "var(--color-text-subtle)", fontSize: 10 }}>{row.rowPct.toFixed(1)}%</span>
+                            </div>
+
+                            {row.cells.map((cell) => {
+                              const absDeviation = cell.absDeviationPct;
+                              const severity =
+                                absDeviation < 1
+                                  ? {
+                                      bg: "var(--color-surface-success-primary)",
+                                      text: "var(--color-text-success-on-primary)",
+                                      border: "var(--color-stroke-success)",
+                                    }
+                                  : absDeviation < 3
+                                    ? {
+                                        bg: "var(--color-surface-info-primary)",
+                                        text: "var(--color-text-info-on-primary)",
+                                        border: "var(--color-stroke-info)",
+                                      }
+                                    : absDeviation < 6
+                                      ? {
+                                          bg: "var(--color-surface-warning-primary)",
+                                          text: "var(--color-text-warning-on-primary)",
+                                          border: "var(--color-stroke-warning)",
+                                        }
+                                      : {
+                                          bg: "var(--color-surface-error-primary)",
+                                          text: "var(--color-text-error-on-primary)",
+                                          border: "var(--color-stroke-error)",
+                                        };
+
+                              return (
+                                <div
+                                  key={`${row.assetClass}-${cell.column}`}
+                                  style={{
+                                    borderRadius: 8,
+                                    border: `1px solid ${severity.border}`,
+                                    background: severity.bg,
+                                    color: severity.text,
+                                    fontSize: 11,
+                                    textAlign: "center",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    minHeight: 44,
+                                    padding: "4px 2px",
+                                    lineHeight: 1.1,
+                                  }}
+                                  title={`${row.assetClass} / ${cell.column}\nAmount: ${formatMoney(cell.amountEur, "EUR")}\nActual: ${cell.pct.toFixed(1)}%\nExpected: ${cell.expectedPct.toFixed(1)}%\nDeviation: ${cell.deviationPct >= 0 ? "+" : ""}${cell.deviationPct.toFixed(1)}%`}
+                                >
+                                  <span>{cell.pct.toFixed(1)}%</span>
+                                </div>
+                              );
+                            })}
+                          </>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 <div style={{ fontSize: 12, color: "var(--color-text-subtle)" }}>
