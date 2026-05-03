@@ -174,7 +174,7 @@ export function LineChart({
     <ResponsiveContainer width="100%" height={height}>
       <RechartsLineChart
         data={data}
-        margin={{ top: 8, right: 16, left: 0, bottom: xLabel ? 24 : 8 }}
+        margin={{ top: 28, right: 16, left: 0, bottom: xLabel ? 24 : 8 }}
       >
         <CartesianGrid strokeDasharray="3 3" stroke="var(--color-stroke-primary)" />
         <XAxis
@@ -218,7 +218,18 @@ export function LineChart({
             borderRadius: "var(--border-radius-medium)",
           }}
         />
-        <Legend wrapperStyle={{ fontSize: 12, fontFamily: "var(--font-regular)", paddingTop: "0px", marginBottom: "-8px" }} content={renderCustomLegend} layout="horizontal" verticalAlign="top" />
+        <Legend
+          wrapperStyle={{
+            fontSize: 12,
+            fontFamily: "var(--font-regular)",
+            paddingTop: "0px",
+            marginBottom: "0px",
+            top: "-2px",
+          }}
+          content={renderCustomLegend}
+          layout="horizontal"
+          verticalAlign="top"
+        />
         {referenceLines.map((line) => (
           <ReferenceLine
             key={`${line.x}-${line.label ?? "reference"}`}
