@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { type ReactNode, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 
@@ -30,11 +30,30 @@ function isItemActive(pathname: string, href: string): boolean {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const { user, isAuthenticated, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const currentYear = new Date().getFullYear();
+
+  const withWealthScope = (href: string): string => {
+    if (!href.startsWith("/wealth/")) {
+      return href;
+    }
+
+    const params = new URLSearchParams();
+    const owner = searchParams.get("owner");
+    const type = searchParams.get("type");
+    const currency = searchParams.get("currency");
+
+    if (owner) params.set("owner", owner);
+    if (type) params.set("type", type);
+    if (currency) params.set("currency", currency);
+
+    const query = params.toString();
+    return query ? `${href}?${query}` : href;
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -72,7 +91,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               return (
                 <Link
                   key={item.href}
-                  href={item.href}
+                  href={withWealthScope(item.href)}
                   className={`top-bar-link${active ? " active" : ""}`}
                 >
                   {item.label}
@@ -201,7 +220,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             return (
               <Link
                 key={item.href}
-                href={item.href}
+                href={withWealthScope(item.href)}
                 className={`mobile-nav-link${active ? " active" : ""}`}
                 onClick={() => setMenuOpen(false)}
               >

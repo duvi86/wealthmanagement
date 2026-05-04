@@ -1,8 +1,10 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { BarChart } from "@/components/ui/bar-chart";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FormDropdown } from "@/components/ui/form-dropdown";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { LineChart } from "@/components/ui/line-chart";
 import { PageFrame, PageHeader } from "@/components/ui/page-frame";
@@ -19,6 +21,13 @@ import {
   wealthProfile,
   type Account,
 } from "@/lib/wealth-mock-data";
+import {
+  ALL_SCOPE_VALUE,
+  computeScopedSnapshot,
+  formatMonthKey,
+  normalizeLoanBalancesForMonth,
+  toDateKey,
+} from "@/lib/wealth-scope";
 import { Skeleton } from "@/components/ui/loading";
 import { useWealthAccounts, useWealthFireScenarios, type WealthFireScenario } from "@/hooks/use-api";
 
@@ -207,23 +216,112 @@ function resolveAllocationBucketForJoint(account: Account, line?: NonNullable<Ac
 }
 
 export default function WealthDashboardPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
   const { data: rawAccounts = [], isLoading: accountsLoading, isError: accountsError } = useWealthAccounts();
   const { data: rawFireScenarios = [] } = useWealthFireScenarios();
-  const accounts = rawAccounts as Account[];
+  const currentMonthKey = useMemo(() => formatMonthKey(new Date()), []);
+  const accounts = useMemo(
+    () => normalizeLoanBalancesForMonth(rawAccounts as Account[], currentMonthKey),
+    [currentMonthKey, rawAccounts],
+  );
   const fireScenarios = rawFireScenarios as WealthFireScenario[];
   const isLoading = accountsLoading;
   const isError = accountsError;
 
-  const toDateKey = (date: string): string => {
-    const parsed = new Date(date);
-    return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString().slice(0, 10);
+  const ownerOptions = useMemo(() => {
+    const byOwner = new Map<string, string>();
+    accounts.forEach((account) => {
+      if (account.ownerId && account.ownerName) {
+        byOwner.set(account.ownerId, account.ownerName);
+      }
+    });
+    return Array.from(byOwner.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [accounts]);
+
+  const typeOptions = useMemo(
+    () => Array.from(new Set(accounts.map((account) => account.type))).sort().map((value) => ({ value, label: value })),
+    [accounts],
+  );
+  const currencyOptions = useMemo(
+    () => Array.from(new Set(accounts.map((account) => account.currency))).sort().map((value) => ({ value, label: value })),
+    [accounts],
+  );
+
+  const ownerFilterValues = useMemo(
+    () => new Set([ALL_SCOPE_VALUE, ...ownerOptions.map((option) => option.id)]),
+    [ownerOptions],
+  );
+  const typeFilterValues = useMemo(
+    () => new Set([ALL_SCOPE_VALUE, ...typeOptions.map((option) => option.value)]),
+    [typeOptions],
+  );
+  const currencyFilterValues = useMemo(
+    () => new Set([ALL_SCOPE_VALUE, ...currencyOptions.map((option) => option.value)]),
+    [currencyOptions],
+  );
+
+  const ownerFilterFromQuery = ownerFilterValues.has(searchParams.get("owner") ?? "")
+    ? (searchParams.get("owner") as string)
+    : ALL_SCOPE_VALUE;
+  const typeFilterFromQuery = typeFilterValues.has(searchParams.get("type") ?? "")
+    ? (searchParams.get("type") as string)
+    : ALL_SCOPE_VALUE;
+  const currencyFilterFromQuery = currencyFilterValues.has(searchParams.get("currency") ?? "")
+    ? (searchParams.get("currency") as string)
+    : ALL_SCOPE_VALUE;
+
+  const [ownerFilter, setOwnerFilter] = useState(ownerFilterFromQuery);
+  const [typeFilter, setTypeFilter] = useState(typeFilterFromQuery);
+  const [currencyFilter, setCurrencyFilter] = useState(currencyFilterFromQuery);
+
+  useEffect(() => {
+    if (ownerFilter !== ownerFilterFromQuery) {
+      setOwnerFilter(ownerFilterFromQuery);
+    }
+    if (typeFilter !== typeFilterFromQuery) {
+      setTypeFilter(typeFilterFromQuery);
+    }
+    if (currencyFilter !== currencyFilterFromQuery) {
+      setCurrencyFilter(currencyFilterFromQuery);
+    }
+  }, [currencyFilter, currencyFilterFromQuery, ownerFilter, ownerFilterFromQuery, typeFilter, typeFilterFromQuery]);
+
+  const syncScopeToUrl = (nextOwner: string, nextType: string, nextCurrency: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+
+    if (nextOwner === ALL_SCOPE_VALUE) params.delete("owner");
+    else params.set("owner", nextOwner);
+
+    if (nextType === ALL_SCOPE_VALUE) params.delete("type");
+    else params.set("type", nextType);
+
+    if (nextCurrency === ALL_SCOPE_VALUE) params.delete("currency");
+    else params.set("currency", nextCurrency);
+
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
 
-  // Build net worth history from full account inventory dates.
+  const { matchingAccounts, latestDate: latestInventoryDate, currentAccounts: latestDateAccounts, totals } = useMemo(
+    () =>
+      computeScopedSnapshot(accounts, {
+        ownerId: ownerFilter,
+        accountType: typeFilter,
+        currency: currencyFilter,
+      }),
+    [accounts, ownerFilter, typeFilter, currencyFilter],
+  );
+
+  // Build net worth history from the same scoped inventory used by KPI totals.
   const monthlyNetWorthHistory = useMemo<MonthlyNetWorth[]>(
     () => {
       const byDate = new Map<string, Account[]>();
-      accounts.forEach((account) => {
+      matchingAccounts.forEach((account) => {
         const date = toDateKey(account.updatedAt);
         if (!date) {
           return;
@@ -238,7 +336,7 @@ export default function WealthDashboardPage() {
           netWorthEur: computeTotals(datedAccounts).netWorth,
         }));
     },
-    [accounts],
+    [matchingAccounts],
   );
 
   const [trendPeriod, setTrendPeriod] = useState("ytd");
@@ -246,26 +344,6 @@ export default function WealthDashboardPage() {
   const [customStartDate, setCustomStartDate] = useState("");
   const [customEndDate, setCustomEndDate] = useState("");
 
-  const latestInventoryDate = useMemo(() => {
-    const latest = accounts.reduce<{ key: string; ts: number } | null>((currentLatest, account) => {
-      const dateKey = toDateKey(account.updatedAt);
-      if (!dateKey) {
-        return currentLatest;
-      }
-      const ts = new Date(dateKey).getTime();
-      if (!currentLatest || ts > currentLatest.ts) {
-        return { key: dateKey, ts };
-      }
-      return currentLatest;
-    }, null);
-
-    return latest?.key ?? null;
-  }, [accounts]);
-  const latestDateAccounts = useMemo(
-    () => accounts.filter((account) => toDateKey(account.updatedAt) === latestInventoryDate),
-    [accounts, latestInventoryDate],
-  );
-  const totals = computeTotals(latestDateAccounts);
   const ytdWindow = useMemo(() => {
     const latestYear = latestInventoryDate?.slice(0, 4);
     const yearPoints = latestYear
@@ -613,6 +691,53 @@ export default function WealthDashboardPage() {
         />
       ) : (
         <>
+          <SurfaceCard>
+            <div className="card-header">
+              <h3 style={{ margin: 0 }}>Filters</h3>
+            </div>
+            <div className="wealth-filter-grid">
+              <FormDropdown
+                label="Owner"
+                value={ownerFilter}
+                onChange={(e) => {
+                  const nextOwner = e.target.value;
+                  setOwnerFilter(nextOwner);
+                  syncScopeToUrl(nextOwner, typeFilter, currencyFilter);
+                }}
+                options={[
+                  { value: ALL_SCOPE_VALUE, label: "All owners" },
+                  ...ownerOptions.map((option) => ({ value: option.id, label: option.name })),
+                ]}
+              />
+              <FormDropdown
+                label="Account Type"
+                value={typeFilter}
+                onChange={(e) => {
+                  const nextType = e.target.value;
+                  setTypeFilter(nextType);
+                  syncScopeToUrl(ownerFilter, nextType, currencyFilter);
+                }}
+                options={[
+                  { value: ALL_SCOPE_VALUE, label: "All types" },
+                  ...typeOptions,
+                ]}
+              />
+              <FormDropdown
+                label="Currency"
+                value={currencyFilter}
+                onChange={(e) => {
+                  const nextCurrency = e.target.value;
+                  setCurrencyFilter(nextCurrency);
+                  syncScopeToUrl(ownerFilter, typeFilter, nextCurrency);
+                }}
+                options={[
+                  { value: ALL_SCOPE_VALUE, label: "All currencies" },
+                  ...currencyOptions,
+                ]}
+              />
+            </div>
+          </SurfaceCard>
+
           <section className="wealth-kpi-grid" aria-label="Net worth key indicators">
             <KpiCard label="Net Worth (EUR)" value={formatMoney(totals.netWorth)} detail={<p className="wealth-kpi-subtle">Assets minus liabilities</p>} />
             <KpiCard label="Total Assets" value={formatMoney(totals.assets)} detail={<p className="wealth-kpi-subtle">All positive balances converted to EUR</p>} />
