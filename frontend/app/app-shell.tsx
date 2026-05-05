@@ -73,14 +73,12 @@ export function AppShell({ children }: { children: ReactNode }) {
         <Link href="/" className="top-bar-brand" aria-label="WealthManagement home">
           <Image
             src="/gsk-logo.svg"
-            alt="GSK"
-            width={64}
-            height={28}
+            alt="WealthAI"
+            width={220}
+            height={48}
             priority
             className="top-bar-logo"
           />
-          <span className="top-bar-divider" aria-hidden="true" />
-          <span className="top-bar-app-name">Wealth Management</span>
         </Link>
 
         {/* Desktop nav */}
