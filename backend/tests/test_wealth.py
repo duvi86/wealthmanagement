@@ -103,6 +103,61 @@ async def test_create_account_expected_return_is_weighted_from_portfolio_lines(c
     assert resp.status_code == 201
     body = resp.json()
     assert body["expected_return_pct"] == pytest.approx(17.5)
+    assert body["native_balance"] == pytest.approx(400.0)
+
+
+@pytest.mark.anyio
+async def test_update_account_native_balance_is_derived_from_portfolio_lines(client: AsyncClient):
+    account_id = f"a-update-lines-{uuid4().hex[:8]}"
+    create_payload = {
+        "id": account_id,
+        "owner_id": "owner-matthieu-duvinage",
+        "owner_name": "Matthieu Duvinage",
+        "account_name": "Update Lines Account",
+        "institution": "Test Broker",
+        "type": "Investment",
+        "currency": "EUR",
+        "native_balance": 25.0,
+        "fx_to_eur": 1.0,
+        "expected_return_pct": 0.0,
+        "updated_at": "2026-05-01",
+        "portfolio_lines": [],
+    }
+    create_resp = await client.post("/api/wealth/accounts", json=create_payload)
+    assert create_resp.status_code == 201
+
+    patch_payload = {
+        "portfolio_lines": [
+            {
+                "id": f"pl-{uuid4().hex[:8]}",
+                "label": "Line A",
+                "allocation_bucket": "Stocks",
+                "area": "Europe",
+                "market_type": "Developed Market",
+                "currency": "EUR",
+                "native_amount": 125.0,
+                "fx_to_eur": 1.0,
+                "expected_return_pct": 6.0,
+            },
+            {
+                "id": f"pl-{uuid4().hex[:8]}",
+                "label": "Line B",
+                "allocation_bucket": "Bonds",
+                "area": "Europe",
+                "market_type": "Developed Market",
+                "currency": "EUR",
+                "native_amount": 75.0,
+                "fx_to_eur": 1.0,
+                "expected_return_pct": 4.0,
+            },
+        ]
+    }
+
+    update_resp = await client.patch(f"/api/wealth/accounts/{account_id}", json=patch_payload)
+    assert update_resp.status_code == 200
+    body = update_resp.json()
+    assert body["native_balance"] == pytest.approx(200.0)
+    assert body["expected_return_pct"] == pytest.approx(5.25)
 
 
 @pytest.mark.anyio

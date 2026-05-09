@@ -612,6 +612,10 @@ export default function WealthDashboardPage() {
     const ownerTypeMap = new Map<string, Map<string, number>>();
     const ownerTotals = new Map<string, number>();
     const typeSet = new Set<string>();
+    const selectedOwnerName =
+      ownerFilter === ALL_SCOPE_VALUE
+        ? null
+        : ownerOptions.find((option) => option.id === ownerFilter)?.name ?? "Selected owner";
 
     latestDateAccounts.forEach((account) => {
       const amountEur = toEur(account);
@@ -623,8 +627,9 @@ export default function WealthDashboardPage() {
       const primaryOwner = (account.ownerName || "Unknown").trim() || "Unknown";
       const coOwner = (account.coOwnerName || "").trim();
 
-      const ownership =
-        splits.length > 0
+      const ownership = selectedOwnerName
+        ? [{ ownerName: selectedOwnerName, sharePct: 100 }]
+        : splits.length > 0
           ? (() => {
               const totalSplit = splits.reduce((sum, entry) => sum + Number(entry.sharePct), 0);
               return splits.map((entry) => ({
@@ -701,7 +706,7 @@ export default function WealthDashboardPage() {
         ...(type === "Loan" ? { color: "var(--color-stroke-error)" } : {}),
       })),
     };
-  }, [latestDateAccounts, totals.netWorth]);
+  }, [latestDateAccounts, ownerFilter, ownerOptions, totals.netWorth]);
 
   return (
     <PageFrame>

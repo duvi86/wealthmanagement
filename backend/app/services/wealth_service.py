@@ -123,6 +123,17 @@ def _weighted_expected_return_from_lines(portfolio_lines: list[Any]) -> float:
     return weighted_return_sum / total_exposure_eur
 
 
+def _native_balance_from_lines(portfolio_lines: list[Any], account_fx_to_eur: float) -> float:
+    if account_fx_to_eur <= 0:
+        return 0.0
+
+    total_exposure_eur = 0.0
+    for line in portfolio_lines:
+        total_exposure_eur += float(getattr(line, "native_amount", 0.0)) * float(getattr(line, "fx_to_eur", 0.0))
+
+    return total_exposure_eur / account_fx_to_eur
+
+
 _MORTGAGE_COLUMNS = {
     "mortgage_principal",
     "mortgage_annual_rate_pct",
@@ -929,8 +940,10 @@ def create_account(db: Session, data: AccountCreate) -> WealthAccount:
     secondary = split_entries[1] if len(split_entries) > 1 else None
 
     derived_expected_return_pct = data.expected_return_pct
+    derived_native_balance = data.native_balance
     if data.portfolio_lines:
         derived_expected_return_pct = _weighted_expected_return_from_lines(data.portfolio_lines)
+        derived_native_balance = _native_balance_from_lines(data.portfolio_lines, float(data.fx_to_eur))
 
     account = WealthAccount(
         id=data.id or _new_id("a-"),
@@ -943,7 +956,7 @@ def create_account(db: Session, data: AccountCreate) -> WealthAccount:
         institution=data.institution,
         type=data.type,
         currency=data.currency,
-        native_balance=data.native_balance,
+        native_balance=derived_native_balance,
         fx_to_eur=data.fx_to_eur,
         expected_return_pct=derived_expected_return_pct,
         allocation_bucket=data.allocation_bucket,
@@ -1038,7 +1051,9 @@ def update_account(db: Session, account_id: str, data: AccountUpdate) -> Optiona
                 fx_to_eur=line.fx_to_eur,
                 expected_return_pct=line.expected_return_pct,
             ))
+        if data.portfolio_lines:
             account.expected_return_pct = _weighted_expected_return_from_lines(data.portfolio_lines)
+            account.native_balance = _native_balance_from_lines(data.portfolio_lines, float(account.fx_to_eur))
 
     if data.mortgage is not None:
         if account.mortgage:

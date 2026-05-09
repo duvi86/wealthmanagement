@@ -13,13 +13,58 @@ export function toDateKey(value: string): string {
   return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString().slice(0, 10);
 }
 
+function getOwnershipShare(account: Account, ownerId: string): number {
+  // If no specific owner filter, return 100%
+  if (ownerId === ALL_SCOPE_VALUE) return 1;
+
+  // If ownership split is defined, find the owner's share percentage
+  if (account.ownershipSplit && account.ownershipSplit.length > 0) {
+    const ownerShare = account.ownershipSplit.find((split) => split.ownerId === ownerId);
+    return ownerShare ? ownerShare.sharePct / 100 : 0;
+  }
+
+  // Without an explicit split, treat two-owner accounts as 50/50.
+  if (account.coOwnerId) {
+    if (account.ownerId === ownerId || account.coOwnerId === ownerId) {
+      return 0.5;
+    }
+    return 0;
+  }
+
+  if (account.ownerId === ownerId) return 1;
+
+  return 0;
+}
+
+function adjustAccountByOwnership(account: Account, ownerId: string): Account {
+  const share = getOwnershipShare(account, ownerId);
+  if (share === 1) return account;
+
+  return {
+    ...account,
+    nativeBalance: account.nativeBalance * share,
+    portfolioLines: account.portfolioLines?.map((line) => ({
+      ...line,
+      nativeAmount: String(Number(line.nativeAmount) * share),
+    })),
+    mortgage: account.mortgage
+      ? {
+          ...account.mortgage,
+          balance: account.mortgage.balance * share,
+        }
+      : undefined,
+  };
+}
+
 export function scopeAccounts(accounts: Account[], scope: WealthScope): Account[] {
-  return accounts.filter((account) => {
-    if (scope.ownerId !== ALL_SCOPE_VALUE && account.ownerId !== scope.ownerId) return false;
-    if (scope.accountType !== ALL_SCOPE_VALUE && account.type !== scope.accountType) return false;
-    if (scope.currency !== ALL_SCOPE_VALUE && account.currency !== scope.currency) return false;
-    return true;
-  });
+  return accounts
+    .filter((account) => {
+      if (scope.ownerId !== ALL_SCOPE_VALUE && account.ownerId !== scope.ownerId && account.coOwnerId !== scope.ownerId) return false;
+      if (scope.accountType !== ALL_SCOPE_VALUE && account.type !== scope.accountType) return false;
+      if (scope.currency !== ALL_SCOPE_VALUE && account.currency !== scope.currency) return false;
+      return true;
+    })
+    .map((account) => adjustAccountByOwnership(account, scope.ownerId));
 }
 
 export function latestScopedDate(accounts: Account[]): string | null {
