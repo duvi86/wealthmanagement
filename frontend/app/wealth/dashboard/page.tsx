@@ -855,7 +855,7 @@ export default function WealthDashboardPage() {
                 <BarChart
                   data={allocationExposureData}
                   xKey="bucket"
-                  series={[{ dataKey: "amountEur", name: "bucket", colorKey: "barColor" }]}
+                  series={[{ dataKey: "amountEur", colorKey: "barColor" }]}
                   height="100%"
                   yLabel="EUR"
                   formatValue={(v) => formatMoney(v, "EUR")}
