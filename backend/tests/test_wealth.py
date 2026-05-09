@@ -59,6 +59,53 @@ async def test_create_and_delete_account(client: AsyncClient):
 
 
 @pytest.mark.anyio
+async def test_create_account_expected_return_is_weighted_from_portfolio_lines(client: AsyncClient):
+    account_id = f"a-weighted-{uuid4().hex[:8]}"
+    payload = {
+        "id": account_id,
+        "owner_id": "owner-matthieu-duvinage",
+        "owner_name": "Matthieu Duvinage",
+        "account_name": "Weighted Return Account",
+        "institution": "Test Broker",
+        "type": "Investment",
+        "currency": "EUR",
+        "native_balance": 0.0,
+        "fx_to_eur": 1.0,
+        "expected_return_pct": 99.0,
+        "updated_at": "2026-05-01",
+        "portfolio_lines": [
+            {
+                "id": f"pl-{uuid4().hex[:8]}",
+                "label": "Line A",
+                "allocation_bucket": "Stocks",
+                "area": "Europe",
+                "market_type": "Developed Market",
+                "currency": "EUR",
+                "native_amount": 100.0,
+                "fx_to_eur": 1.0,
+                "expected_return_pct": 10.0,
+            },
+            {
+                "id": f"pl-{uuid4().hex[:8]}",
+                "label": "Line B",
+                "allocation_bucket": "Stocks",
+                "area": "Europe",
+                "market_type": "Developed Market",
+                "currency": "EUR",
+                "native_amount": 300.0,
+                "fx_to_eur": 1.0,
+                "expected_return_pct": 20.0,
+            },
+        ],
+    }
+
+    resp = await client.post("/api/wealth/accounts", json=payload)
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["expected_return_pct"] == pytest.approx(17.5)
+
+
+@pytest.mark.anyio
 async def test_list_snapshots(client: AsyncClient):
     resp = await client.get("/api/wealth/snapshots")
     assert resp.status_code == 200

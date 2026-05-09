@@ -105,6 +105,24 @@ def _derive_owner_id(owner_name: str, owner_name_to_id: dict[str, str], used_own
     return candidate
 
 
+def _weighted_expected_return_from_lines(portfolio_lines: list[Any]) -> float:
+    weighted_return_sum = 0.0
+    total_exposure_eur = 0.0
+
+    for line in portfolio_lines:
+        exposure_eur = float(getattr(line, "native_amount", 0.0)) * float(getattr(line, "fx_to_eur", 0.0))
+        if exposure_eur <= 0:
+            continue
+        expected_return_pct = float(getattr(line, "expected_return_pct", 0.0))
+        weighted_return_sum += exposure_eur * expected_return_pct
+        total_exposure_eur += exposure_eur
+
+    if total_exposure_eur <= 0:
+        return 0.0
+
+    return weighted_return_sum / total_exposure_eur
+
+
 _MORTGAGE_COLUMNS = {
     "mortgage_principal",
     "mortgage_annual_rate_pct",
@@ -910,6 +928,10 @@ def create_account(db: Session, data: AccountCreate) -> WealthAccount:
     primary = split_entries[0]
     secondary = split_entries[1] if len(split_entries) > 1 else None
 
+    derived_expected_return_pct = data.expected_return_pct
+    if data.portfolio_lines:
+        derived_expected_return_pct = _weighted_expected_return_from_lines(data.portfolio_lines)
+
     account = WealthAccount(
         id=data.id or _new_id("a-"),
         owner_id=primary["owner_id"],
@@ -923,7 +945,7 @@ def create_account(db: Session, data: AccountCreate) -> WealthAccount:
         currency=data.currency,
         native_balance=data.native_balance,
         fx_to_eur=data.fx_to_eur,
-        expected_return_pct=data.expected_return_pct,
+        expected_return_pct=derived_expected_return_pct,
         allocation_bucket=data.allocation_bucket,
         updated_at=data.updated_at,
     )
@@ -1016,6 +1038,7 @@ def update_account(db: Session, account_id: str, data: AccountUpdate) -> Optiona
                 fx_to_eur=line.fx_to_eur,
                 expected_return_pct=line.expected_return_pct,
             ))
+            account.expected_return_pct = _weighted_expected_return_from_lines(data.portfolio_lines)
 
     if data.mortgage is not None:
         if account.mortgage:

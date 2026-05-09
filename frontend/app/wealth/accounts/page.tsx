@@ -291,6 +291,35 @@ function computeAmortizedBalance(
   return principal * (powN - powN2) / (powN - 1);
 }
 
+function computeAccountExpectedReturnPct(account: Account): number {
+  const portfolioLines = account.portfolioLines ?? [];
+  if (portfolioLines.length === 0) {
+    return Number(account.expectedReturnPct ?? 0);
+  }
+
+  const weighted = portfolioLines.reduce((sum, line) => {
+    const exposureEur = Number(line.nativeAmount || 0) * Number(line.fxToEur || 0);
+    if (!Number.isFinite(exposureEur) || exposureEur <= 0) {
+      return sum;
+    }
+    return sum + exposureEur * Number(line.expectedReturnPct || 0);
+  }, 0);
+
+  const totalEur = portfolioLines.reduce((sum, line) => {
+    const exposureEur = Number(line.nativeAmount || 0) * Number(line.fxToEur || 0);
+    if (!Number.isFinite(exposureEur) || exposureEur <= 0) {
+      return sum;
+    }
+    return sum + exposureEur;
+  }, 0);
+
+  if (totalEur <= 0) {
+    return Number(account.expectedReturnPct ?? 0);
+  }
+
+  return Number((weighted / totalEur).toFixed(4));
+}
+
 function buildAccountsRegistrySnapshot(accounts: Account[]): RegistrySnapshot {
   const groupedRows = new Map<
     string,
@@ -307,7 +336,8 @@ function buildAccountsRegistrySnapshot(accounts: Account[]): RegistrySnapshot {
 
   accounts.forEach((account) => {
     const allocationBucket = account.allocationBucket ?? "";
-    const rowKey = buildImportLinkKeyFromAccount(account);
+    const rowKey = buildImportLinkKeyLooseFromAccount(account);
+    const computedExpectedReturnPct = computeAccountExpectedReturnPct(account);
 
     if (!groupedRows.has(rowKey)) {
       groupedRows.set(rowKey, {
@@ -317,7 +347,7 @@ function buildAccountsRegistrySnapshot(accounts: Account[]): RegistrySnapshot {
         institution: account.institution,
         accountType: account.type,
         currency: account.currency,
-        expectedReturnPct: account.expectedReturnPct,
+        expectedReturnPct: computedExpectedReturnPct,
         allocationBucket,
         isMortgageLoan: account.type === "Loan" && Boolean(account.mortgage),
         mortgage: account.mortgage ?? null,
@@ -334,6 +364,8 @@ function buildAccountsRegistrySnapshot(accounts: Account[]): RegistrySnapshot {
     }
     if (account.updatedAt > grp.latestAccount.updatedAt) {
       grp.latestAccount = account;
+      grp.expectedReturnPct = computedExpectedReturnPct;
+      grp.allocationBucket = account.allocationBucket ?? grp.allocationBucket;
     }
     grp.balancesByDate.set(account.updatedAt, String(account.nativeBalance));
   });
@@ -606,12 +638,12 @@ const MARKET_TYPE_OPTIONS: Array<{ value: MarketTypeOption; label: string }> = [
 const MARKET_TYPE_OPTION_SET = new Set<MarketTypeOption>(MARKET_TYPE_OPTIONS.map((option) => option.value));
 
 function normalizeAreaOption(value: unknown): AreaOption {
-  const next = String(value ?? "") as AreaOption;
+  const next = String(value ?? "").trim() as AreaOption;
   return AREA_OPTION_SET.has(next) ? next : "Europe";
 }
 
 function normalizeMarketTypeOption(value: unknown): MarketTypeOption {
-  const next = String(value ?? "") as MarketTypeOption;
+  const next = String(value ?? "").trim() as MarketTypeOption;
   return MARKET_TYPE_OPTION_SET.has(next) ? next : "Developed Market";
 }
 
@@ -713,6 +745,13 @@ const PORTFOLIO_BUCKET_OPTIONS: Array<{ value: AllocationBucket; label: string }
   { value: "Cash", label: "Cash" },
   { value: "Savings", label: "Savings" },
 ];
+
+const PORTFOLIO_BUCKET_OPTION_SET = new Set<AllocationBucket>(PORTFOLIO_BUCKET_OPTIONS.map((option) => option.value));
+
+function normalizePortfolioBucketOption(value: unknown): AllocationBucket {
+  const next = String(value ?? "").trim() as AllocationBucket;
+  return PORTFOLIO_BUCKET_OPTION_SET.has(next) ? next : "Stocks";
+}
 
 function makeEmptyPortfolioLine(index = 0): PortfolioLineState {
   return {
@@ -1080,7 +1119,7 @@ export default function WealthAccountsPage() {
     {
       key: "expectedReturnPct",
       header: "Expected Return",
-      render: (value: unknown) => `${Number(value).toFixed(1)}%`,
+      render: (_value: unknown, row: Account) => `${computeAccountExpectedReturnPct(row).toFixed(1)}%`,
     },
     {
       key: "id",
@@ -1754,7 +1793,7 @@ export default function WealthAccountsPage() {
               const expectedReturnPct = Number(row.expected_return_pct ?? 0);
               return {
                 label: String(row.label ?? "Position"),
-                allocationBucket: String(row.allocation_bucket ?? "Stocks") as AllocationBucket,
+                allocationBucket: normalizePortfolioBucketOption(row.allocation_bucket),
                 area: normalizeAreaOption(row.area),
                 marketType: normalizeMarketTypeOption(row.market_type),
                 currency,
@@ -1794,8 +1833,12 @@ export default function WealthAccountsPage() {
                   id: `pl-import-agg-${linkedAccount.id}-${Date.now()}`,
                 }];
               }
-              await updateAccount.mutateAsync({ id: linkedAccount.id, portfolioLines: portfolioLines as any });
-              portfolioUpdatedCount += 1;
+              try {
+                await updateAccount.mutateAsync({ id: linkedAccount.id, portfolioLines: portfolioLines as any });
+                portfolioUpdatedCount += 1;
+              } catch {
+                warnings.push(`Failed to update portfolio lines for account_id '${accountId}' (linked account '${linkedAccount.accountName}').`);
+              }
             }
           }
         }
