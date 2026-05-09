@@ -855,7 +855,7 @@ export default function WealthDashboardPage() {
                 <BarChart
                   data={allocationExposureData}
                   xKey="bucket"
-                  series={[{ dataKey: "amountEur", name: "", colorKey: "barColor" }]}
+                  series={[{ dataKey: "amountEur", name: "bucket", colorKey: "barColor" }]}
                   height="100%"
                   yLabel="EUR"
                   formatValue={(v) => formatMoney(v, "EUR")}
@@ -1129,10 +1129,10 @@ export default function WealthDashboardPage() {
                           style={{
                             position: "fixed",
                             top: Math.max(12, Math.min(jointExposureHover.y, window.innerHeight - 210)),
-                            left: Math.max(12, Math.min(jointExposureHover.x, window.innerWidth - 360)),
+                            left: Math.max(12, Math.min(jointExposureHover.x, window.innerWidth - 430)),
                             zIndex: 1200,
                             pointerEvents: "none",
-                            width: 340,
+                            width: 410,
                             maxWidth: "calc(100vw - 24px)",
                             border: "1px solid var(--color-stroke-primary)",
                             borderRadius: 10,
