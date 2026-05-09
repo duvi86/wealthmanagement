@@ -51,6 +51,7 @@ import {
   type WealthPersonProfile,
 } from "@/hooks/use-api";
 import { Skeleton } from "@/components/ui/loading";
+import apiClient from "@/lib/api-client";
 
 const WEALTH_IMPORT_STATIC_COLUMNS = [
   "owner_name",
@@ -1726,7 +1727,18 @@ export default function WealthAccountsPage() {
           });
 
           const refetchResult = await refetchAccounts();
-          const refreshedAccounts = (refetchResult.data ?? sourceAccounts) as Account[];
+          let refreshedAccounts = (refetchResult.data ?? []) as Account[];
+          if (refreshedAccounts.length === 0) {
+            try {
+              refreshedAccounts = (await apiClient.get<Account[]>("/api/wealth/accounts")) ?? [];
+            } catch {
+              // Keep fallback below when direct fetch is temporarily unavailable.
+            }
+          }
+          if (refreshedAccounts.length === 0) {
+            refreshedAccounts = sourceAccounts as Account[];
+            warnings.push("Could not refresh accounts right after import; some newly imported account_id links may be skipped.");
+          }
           const accountsByLinkKey = new Map<string, Account[]>();
           const accountsByLooseLinkKey = new Map<string, Account[]>();
           const accountsByVeryLooseLinkKey = new Map<string, Account[]>();
