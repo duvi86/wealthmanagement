@@ -864,7 +864,7 @@ export default function WealthDashboardPage() {
             </SurfaceCard>
           </section>
 
-          <section className="wealth-chart-grid wealth-chart-grid--fixed-height" aria-label="Currency and owner wealth exposure">
+          <section className="wealth-chart-grid wealth-chart-grid--fixed-height wealth-chart-grid--header-aligned" aria-label="Currency and owner wealth exposure">
             <SurfaceCard>
               <div className="card-header">
                 <h3 style={{ margin: 0 }}>
