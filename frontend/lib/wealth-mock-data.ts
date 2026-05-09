@@ -347,14 +347,30 @@ export function formatMoney(amount: number, currency = "EUR"): string {
 }
 
 export function computeTotals(accounts: Account[]) {
-  const assets = accounts
-    .filter((a) => a.nativeBalance >= 0)
-    .reduce((sum, account) => sum + toEur(account), 0);
-  const liabilities = Math.abs(
-    accounts
-      .filter((a) => a.nativeBalance < 0)
-      .reduce((sum, account) => sum + toEur(account), 0),
-  );
+  let assets = 0;
+  let liabilities = 0;
+
+  accounts.forEach((account) => {
+    if (account.portfolioLines?.length) {
+      account.portfolioLines.forEach((line) => {
+        const amountEur = line.nativeAmount * line.fxToEur;
+        if (amountEur < 0) {
+          liabilities += Math.abs(amountEur);
+        } else {
+          assets += amountEur;
+        }
+      });
+      return;
+    }
+
+    const amountEur = toEur(account);
+    if (amountEur < 0) {
+      liabilities += Math.abs(amountEur);
+    } else {
+      assets += amountEur;
+    }
+  });
+
   return {
     assets,
     liabilities,
@@ -416,9 +432,11 @@ export function byAllocationBucket(accounts: Account[]) {
   accounts.forEach((account) => {
     if (account.portfolioLines?.length) {
       account.portfolioLines.forEach((line) => {
+        const amountEur = line.nativeAmount * line.fxToEur;
+        if (amountEur <= 0) return;
         const bucket = resolveBucket(account, line);
         const current = map.get(bucket) ?? 0;
-        map.set(bucket, current + line.nativeAmount * line.fxToEur);
+        map.set(bucket, current + amountEur);
       });
       return;
     }

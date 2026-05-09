@@ -421,8 +421,8 @@ function buildWorkbookTemplateSheets() {
   const instructionsSheetRows: Array<Array<string>> = [
     ["Wealth Import Instructions"],
     ["1) Fill the Accounts sheet (one account per row, plus one column per date)."],
-    ["2) PortfolioLines is for rows whose account_type in Accounts is Investment, Private Equity, or Property."],
-    ["3) Do not include Cash, Savings, Loan, or Cryptocurrency account_ids in PortfolioLines."],
+    ["2) PortfolioLines is for rows whose account_type in Accounts is Loan or Investment."],
+    ["3) Do not include Cash, Savings, Private Equity, Property, or Cryptocurrency account_ids in PortfolioLines."],
     ["4) Link portfolio lines to accounts with account_id."],
     ["5) FX to EUR is derived automatically from currency and does not need to be provided."],
     ["6) Keep tab names exactly: Accounts, PortfolioLines."],
@@ -432,6 +432,7 @@ function buildWorkbookTemplateSheets() {
 }
 
 function buildAccountsWorkbook(accounts: Account[]) {
+  const supportsDownloadedPortfolioLines = (type: string) => type === "Loan" || type === "Investment";
   const workbook = XLSX.utils.book_new();
 
   if (accounts.length === 0) {
@@ -486,7 +487,7 @@ function buildAccountsWorkbook(accounts: Account[]) {
   const portfolioLinesSheetRows: Array<Array<string | number>> = [
     [...WEALTH_PORTFOLIO_LINES_COLUMNS],
     ...snapshot.rows.flatMap((row) => {
-      if (!supportsPortfolioLines(row.latestAccount.type)) return [];
+      if (!supportsDownloadedPortfolioLines(row.latestAccount.type)) return [];
       const portfolioLines = row.latestAccount.portfolioLines ?? [];
 
       if (!portfolioLines.length) {
@@ -516,7 +517,7 @@ function buildAccountsWorkbook(accounts: Account[]) {
   ];
 
   if (portfolioLinesSheetRows.length === 1) {
-    const firstSupported = snapshot.rows.find((row) => supportsPortfolioLines(row.accountType));
+    const firstSupported = snapshot.rows.find((row) => supportsDownloadedPortfolioLines(row.accountType));
     if (firstSupported) {
       portfolioLinesSheetRows.push([firstSupported.accountId, "Main Position", firstSupported.allocationBucket || "Stocks", "Europe", "Developed Market", firstSupported.currency, 0, firstSupported.expectedReturnPct]);
     }
@@ -525,7 +526,7 @@ function buildAccountsWorkbook(accounts: Account[]) {
   const instructionsSheetRows: Array<Array<string>> = [
     ["Wealth Export / Import Guide"],
     ["Accounts tab: one row per account series with time-series values as date columns."],
-    ["PortfolioLines tab: one row per portfolio line, linked with account_id, for Investment, Private Equity, and Property accounts."],
+    ["PortfolioLines tab: one row per portfolio line, linked with account_id, for Loan and Investment accounts."],
     ["PortfolioLines rows for other account types are ignored during upload."],
     ["Required link: each PortfolioLines.account_id must exist in Accounts.account_id."],
     ["FX to EUR is auto-fetched from currency during account editing and upload enrichment."],
