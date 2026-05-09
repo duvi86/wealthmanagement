@@ -870,52 +870,55 @@ export default function WealthDashboardPage() {
                 <h3 style={{ margin: 0 }}>
                   Exposure <span style={{ fontSize: 13, color: "var(--color-text-subtle)" }}>({formatMoney(jointExposure.totalEur, "EUR")})</span>
                 </h3>
-                <Button
-                  type="button"
-                  role="switch"
-                  aria-checked={includeDirectPropertyInJointExposure}
-                  aria-label="Include direct Property in Joint Exposure"
-                  title={includeDirectPropertyInJointExposure ? "Direct Property: On" : "Direct Property: Off"}
-                  onClick={() => setIncludeDirectPropertyInJointExposure((current) => !current)}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    width: 36,
-                    height: 20,
-                    padding: 0,
-                    borderRadius: 999,
-                  }}
-                >
-                  <span
-                    aria-hidden="true"
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 12, color: "var(--color-text-subtle)" }}>Property</span>
+                  <Button
+                    type="button"
+                    role="switch"
+                    aria-checked={includeDirectPropertyInJointExposure}
+                    aria-label="Include direct Property in Joint Exposure"
+                    title={includeDirectPropertyInJointExposure ? "Direct Property: On" : "Direct Property: Off"}
+                    onClick={() => setIncludeDirectPropertyInJointExposure((current) => !current)}
                     style={{
-                      width: 26,
-                      height: 14,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: 36,
+                      height: 20,
+                      padding: 0,
                       borderRadius: 999,
-                      position: "relative",
-                      background: includeDirectPropertyInJointExposure
-                        ? "var(--color-surface-success-primary)"
-                        : "var(--color-surface-secondary)",
-                      border: "1px solid var(--color-stroke-primary)",
-                      transition: "background 120ms ease",
                     }}
                   >
                     <span
+                      aria-hidden="true"
                       style={{
-                        position: "absolute",
-                        top: 1,
-                        left: includeDirectPropertyInJointExposure ? 13 : 1,
-                        width: 10,
-                        height: 10,
-                        borderRadius: "50%",
-                        background: "var(--color-surface-primary)",
+                        width: 26,
+                        height: 14,
+                        borderRadius: 999,
+                        position: "relative",
+                        background: includeDirectPropertyInJointExposure
+                          ? "var(--color-surface-success-primary)"
+                          : "var(--color-surface-secondary)",
                         border: "1px solid var(--color-stroke-primary)",
-                        transition: "left 120ms ease",
+                        transition: "background 120ms ease",
                       }}
-                    />
-                  </span>
-                </Button>
+                    >
+                      <span
+                        style={{
+                          position: "absolute",
+                          top: 1,
+                          left: includeDirectPropertyInJointExposure ? 13 : 1,
+                          width: 10,
+                          height: 10,
+                          borderRadius: "50%",
+                          background: "var(--color-surface-primary)",
+                          border: "1px solid var(--color-stroke-primary)",
+                          transition: "left 120ms ease",
+                        }}
+                      />
+                    </span>
+                  </Button>
+                </div>
               </div>
               <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, gap: 12 }}>
                 <div
@@ -1148,7 +1151,6 @@ export default function WealthDashboardPage() {
                           <div style={{ fontFamily: "var(--font-semibold)" }}>
                             {jointExposureHover.assetClass} / {jointExposureHover.column}
                           </div>
-                          <div>Amount: {formatMoney(jointExposureHover.amountEur, "EUR")}</div>
                           <div>
                             Actual: {jointExposureHover.pct.toFixed(1)}% | Expected: {jointExposureHover.expectedPct.toFixed(1)}% | Deviation: {jointExposureHover.deviationPct >= 0 ? "+" : ""}
                             {jointExposureHover.deviationPct.toFixed(1)}%
