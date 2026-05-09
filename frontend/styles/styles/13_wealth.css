@@ -37,6 +37,10 @@
   min-height: 400px;
 }
 
+.wealth-chart-grid--header-aligned .card-header {
+  min-height: 54px;
+}
+
 .wealth-chart-grid--fixed-height > .surface-card {
   height: 400px;
 }

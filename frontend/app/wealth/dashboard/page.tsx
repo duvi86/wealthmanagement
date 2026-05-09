@@ -792,7 +792,7 @@ export default function WealthDashboardPage() {
             />
           </section>
 
-          <section className="wealth-chart-grid" aria-label="Net worth and allocation charts">
+          <section className="wealth-chart-grid wealth-chart-grid--header-aligned" aria-label="Net worth and allocation charts">
             <SurfaceCard>
               <div className="card-header">
                 <h3 className="wealth-trend-title">Net Worth Trend</h3>
