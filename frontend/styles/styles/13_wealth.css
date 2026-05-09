@@ -37,6 +37,10 @@
   min-height: 400px;
 }
 
+.wealth-chart-grid--fixed-height > .surface-card {
+  height: 400px;
+}
+
 .wealth-actions-row {
   display: flex;
   flex-wrap: wrap;

@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { BarChart } from "@/components/ui/bar-chart";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FormDropdown } from "@/components/ui/form-dropdown";
 import { KpiCard } from "@/components/ui/kpi-card";
@@ -230,6 +231,17 @@ export default function WealthDashboardPage() {
   const fireScenarios = rawFireScenarios as WealthFireScenario[];
   const isLoading = accountsLoading;
   const isError = accountsError;
+  const [jointExposureHover, setJointExposureHover] = useState<{
+    x: number;
+    y: number;
+    assetClass: string;
+    column: string;
+    amountEur: number;
+    pct: number;
+    expectedPct: number;
+    deviationPct: number;
+    topContributors: Array<{ label: string; amountEur: number }>;
+  } | null>(null);
 
   const ownerOptions = useMemo(() => {
     const byOwner = new Map<string, string>();
@@ -343,6 +355,7 @@ export default function WealthDashboardPage() {
   const [trendResolution, setTrendResolution] = useState<TrendResolution>("monthly");
   const [customStartDate, setCustomStartDate] = useState("");
   const [customEndDate, setCustomEndDate] = useState("");
+  const [includeDirectPropertyInJointExposure, setIncludeDirectPropertyInJointExposure] = useState(true);
 
   const ytdWindow = useMemo(() => {
     const latestYear = latestInventoryDate?.slice(0, 4);
@@ -397,9 +410,16 @@ export default function WealthDashboardPage() {
   const allocationData = useMemo(() => byAllocationBucket(latestDateAccounts), [latestDateAccounts]);
   const jointExposure = useMemo(() => {
     const matrix = new Map<string, Map<string, number>>();
+    const contributors = new Map<string, Map<string, Map<string, number>>>();
     const dynamicColumns = new Set<string>();
 
-    const addValue = (assetClass: string, market: MarketGroup, currency: string, amountEur: number) => {
+    const addValue = (
+      assetClass: string,
+      market: MarketGroup,
+      currency: string,
+      amountEur: number,
+      contributorLabel: string,
+    ) => {
       if (amountEur <= 0) return;
       const normalizedCurrency = (currency || "Unknown").toUpperCase();
       const column = `${market}-${normalizedCurrency}`;
@@ -408,10 +428,21 @@ export default function WealthDashboardPage() {
       const row = matrix.get(assetClass) ?? new Map<string, number>();
       row.set(column, (row.get(column) ?? 0) + amountEur);
       matrix.set(assetClass, row);
+
+      const rowContributors = contributors.get(assetClass) ?? new Map<string, Map<string, number>>();
+      const columnContributors = rowContributors.get(column) ?? new Map<string, number>();
+      columnContributors.set(contributorLabel, (columnContributors.get(contributorLabel) ?? 0) + amountEur);
+      rowContributors.set(column, columnContributors);
+      contributors.set(assetClass, rowContributors);
     };
 
     latestDateAccounts.forEach((account) => {
       if (account.type === "Loan") {
+        return;
+      }
+
+      // When disabled, remove all direct Property-account exposure from this matrix.
+      if (!includeDirectPropertyInJointExposure && account.type === "Property") {
         return;
       }
 
@@ -421,7 +452,8 @@ export default function WealthDashboardPage() {
           const bucket = resolveAllocationBucketForJoint(account, line);
           const marketType = (line as { marketType?: string; market_type?: string }).marketType
             ?? (line as { marketType?: string; market_type?: string }).market_type;
-          addValue(bucket, normalizeMarketType(marketType), String(line.currency ?? account.currency), amountEur);
+          const contributorLabel = `${account.accountName} - ${line.label ?? "line"}`;
+          addValue(bucket, normalizeMarketType(marketType), String(line.currency ?? account.currency), amountEur, contributorLabel);
         });
         return;
       }
@@ -431,7 +463,7 @@ export default function WealthDashboardPage() {
         return;
       }
       const bucket = resolveAllocationBucketForJoint(account);
-      addValue(bucket, "Developed", String(account.currency), amountEur);
+      addValue(bucket, "Developed", String(account.currency), amountEur, account.accountName);
     });
 
     // Determine which currencies to include: EUR & USD always, CHF only if data exists
@@ -464,6 +496,10 @@ export default function WealthDashboardPage() {
           const amountEur = row.get(column) ?? 0;
           const pct = totalEur > 0 ? (amountEur / totalEur) * 100 : 0;
           const deviationPct = pct - expectedCellPct;
+          const topContributors = Array.from(contributors.get(assetClass)?.get(column)?.entries() ?? [])
+            .map(([label, contributorAmountEur]) => ({ label, amountEur: contributorAmountEur }))
+            .sort((a, b) => b.amountEur - a.amountEur)
+            .slice(0, 3);
           return {
             column,
             amountEur,
@@ -471,6 +507,7 @@ export default function WealthDashboardPage() {
             expectedPct: expectedCellPct,
             deviationPct,
             absDeviationPct: Math.abs(deviationPct),
+            topContributors,
           };
         });
 
@@ -522,7 +559,7 @@ export default function WealthDashboardPage() {
       thresholdSuccess,
       thresholdWarning,
     };
-  }, [latestDateAccounts]);
+  }, [includeDirectPropertyInJointExposure, latestDateAccounts]);
   const liabilityData = useMemo(() => {
     const byCategory = new Map<string, number>();
 
@@ -827,38 +864,67 @@ export default function WealthDashboardPage() {
             </SurfaceCard>
           </section>
 
-          <section className="wealth-chart-grid" aria-label="Currency and owner wealth exposure">
+          <section className="wealth-chart-grid wealth-chart-grid--fixed-height" aria-label="Currency and owner wealth exposure">
             <SurfaceCard>
               <div className="card-header">
-                <h3 style={{ margin: 0 }}>Joint Exposure: Asset x Market x Currency</h3>
-              </div>
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, gap: 12 }}>
-                <div
+                <h3 style={{ margin: 0 }}>
+                  Exposure <span style={{ fontSize: 13, color: "var(--color-text-subtle)" }}>({formatMoney(jointExposure.totalEur, "EUR")})</span>
+                </h3>
+                <Button
+                  type="button"
+                  role="switch"
+                  aria-checked={includeDirectPropertyInJointExposure}
+                  aria-label="Include direct Property in Joint Exposure"
+                  title={includeDirectPropertyInJointExposure ? "Direct Property: On" : "Direct Property: Off"}
+                  onClick={() => setIncludeDirectPropertyInJointExposure((current) => !current)}
                   style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: 12,
+                    display: "inline-flex",
                     alignItems: "center",
-                    fontSize: 12,
-                    color: "var(--color-text-subtle)",
+                    justifyContent: "center",
+                    width: 36,
+                    height: 20,
+                    padding: 0,
+                    borderRadius: 999,
                   }}
                 >
-                  <span>
-                    Balance score: <strong style={{ color: "var(--color-text-default)" }}>{jointExposure.score}/100</strong>
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      width: 26,
+                      height: 14,
+                      borderRadius: 999,
+                      position: "relative",
+                      background: includeDirectPropertyInJointExposure
+                        ? "var(--color-surface-success-primary)"
+                        : "var(--color-surface-secondary)",
+                      border: "1px solid var(--color-stroke-primary)",
+                      transition: "background 120ms ease",
+                    }}
+                  >
+                    <span
+                      style={{
+                        position: "absolute",
+                        top: 1,
+                        left: includeDirectPropertyInJointExposure ? 13 : 1,
+                        width: 10,
+                        height: 10,
+                        borderRadius: "50%",
+                        background: "var(--color-surface-primary)",
+                        border: "1px solid var(--color-stroke-primary)",
+                        transition: "left 120ms ease",
+                      }}
+                    />
                   </span>
-                  <span>
-                    Expected cell share: <strong style={{ color: "var(--color-text-default)" }}>{jointExposure.expectedCellPct.toFixed(1)}%</strong>
-                  </span>
-                  <span>
-                    Tracked exposure: <strong style={{ color: "var(--color-text-default)" }}>{formatMoney(jointExposure.totalEur, "EUR")}</strong>
-                  </span>
-                </div>
-
+                </Button>
+              </div>
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, gap: 12 }}>
                 <div
                   style={{
                     border: "1px solid var(--color-stroke-primary)",
                     borderRadius: 10,
                     padding: 10,
+                    overflow: "auto",
+                    position: "relative",
                     background:
                       "linear-gradient(180deg, color-mix(in srgb, var(--color-surface-secondary) 45%, transparent), var(--color-surface-primary))",
                   }}
@@ -914,11 +980,15 @@ export default function WealthDashboardPage() {
                       >
                         <div
                           style={{
-                            padding: "6px 8px",
-                            borderRadius: 8,
+                            padding: "3px 6px",
+                            borderRadius: 6,
                             background: "var(--color-surface-secondary)",
-                            fontSize: 11,
+                            fontSize: 10,
                             fontFamily: "var(--font-semibold)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            minHeight: 24,
                           }}
                         >
                           Asset Class
@@ -927,12 +997,16 @@ export default function WealthDashboardPage() {
                           <div
                             key={column}
                             style={{
-                              padding: "6px 4px",
-                              borderRadius: 8,
+                              padding: "3px 2px",
+                              borderRadius: 6,
                               background: "var(--color-surface-secondary)",
-                              fontSize: 10,
+                              fontSize: 9,
                               textAlign: "center",
                               lineHeight: 1.2,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              minHeight: 24,
                             }}
                           >
                             {column}
@@ -943,20 +1017,22 @@ export default function WealthDashboardPage() {
                           <Fragment key={row.assetClass}>
                             <div
                               style={{
-                                padding: "8px",
-                                borderRadius: 8,
+                                padding: "4px 6px",
+                                borderRadius: 6,
                                 border: "1px solid var(--color-stroke-primary)",
-                                fontSize: 12,
+                                fontSize: 11,
                                 background: "var(--color-surface-primary)",
                                 display: "flex",
-                                flexDirection: "column",
-                                justifyContent: "center",
-                                gap: 2,
+                                flexDirection: "row",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                gap: 4,
+                                minHeight: 32,
                               }}
                               title={`${formatMoney(row.rowTotalEur, "EUR")} (${row.rowPct.toFixed(1)}% of tracked exposure)`}
                             >
-                              <span style={{ fontFamily: "var(--font-semibold)" }}>{row.assetClass}</span>
-                              <span style={{ color: "var(--color-text-subtle)", fontSize: 10 }}>{row.rowPct.toFixed(1)}%</span>
+                              <span style={{ fontFamily: "var(--font-semibold)", fontSize: 10 }}>{row.assetClass}</span>
+                              <span style={{ color: "var(--color-text-subtle)", fontSize: 9, whiteSpace: "nowrap" }}>{row.rowPct.toFixed(1)}%</span>
                             </div>
 
                             {row.cells.map((cell) => {
@@ -984,20 +1060,61 @@ export default function WealthDashboardPage() {
                                 <div
                                   key={`${row.assetClass}-${cell.column}`}
                                   style={{
-                                    borderRadius: 8,
+                                    borderRadius: 6,
                                     border: `1px solid ${severity.border}`,
                                     background: severity.bg,
                                     color: severity.text,
-                                    fontSize: 11,
+                                    fontSize: 10,
                                     textAlign: "center",
                                     display: "flex",
                                     alignItems: "center",
                                     justifyContent: "center",
-                                    minHeight: 44,
-                                    padding: "4px 2px",
+                                    minHeight: 32,
+                                    padding: "2px 1px",
                                     lineHeight: 1.1,
+                                    cursor: "help",
                                   }}
-                                  title={`${row.assetClass} / ${cell.column}\nAmount: ${formatMoney(cell.amountEur, "EUR")}\nActual: ${cell.pct.toFixed(1)}%\nExpected: ${cell.expectedPct.toFixed(1)}%\nDeviation: ${cell.deviationPct >= 0 ? "+" : ""}${cell.deviationPct.toFixed(1)}%`}
+                                  tabIndex={0}
+                                  onMouseEnter={(event) => {
+                                    setJointExposureHover({
+                                      x: event.clientX + 12,
+                                      y: event.clientY + 12,
+                                      assetClass: row.assetClass,
+                                      column: cell.column,
+                                      amountEur: cell.amountEur,
+                                      pct: cell.pct,
+                                      expectedPct: cell.expectedPct,
+                                      deviationPct: cell.deviationPct,
+                                      topContributors: cell.topContributors,
+                                    });
+                                  }}
+                                  onMouseMove={(event) => {
+                                    setJointExposureHover((current) =>
+                                      current
+                                        ? {
+                                            ...current,
+                                            x: event.clientX + 12,
+                                            y: event.clientY + 12,
+                                          }
+                                        : current,
+                                    );
+                                  }}
+                                  onMouseLeave={() => setJointExposureHover(null)}
+                                  onFocus={(event) => {
+                                    const rect = event.currentTarget.getBoundingClientRect();
+                                    setJointExposureHover({
+                                      x: rect.right + 8,
+                                      y: rect.top + 8,
+                                      assetClass: row.assetClass,
+                                      column: cell.column,
+                                      amountEur: cell.amountEur,
+                                      pct: cell.pct,
+                                      expectedPct: cell.expectedPct,
+                                      deviationPct: cell.deviationPct,
+                                      topContributors: cell.topContributors,
+                                    });
+                                  }}
+                                  onBlur={() => setJointExposureHover(null)}
                                 >
                                   <span>{cell.pct.toFixed(1)}%</span>
                                 </div>
@@ -1006,18 +1123,55 @@ export default function WealthDashboardPage() {
                           </Fragment>
                         ))}
                       </div>
+                      {jointExposureHover ? (
+                        <div
+                          role="tooltip"
+                          style={{
+                            position: "fixed",
+                            top: Math.max(12, Math.min(jointExposureHover.y, window.innerHeight - 210)),
+                            left: Math.max(12, Math.min(jointExposureHover.x, window.innerWidth - 360)),
+                            zIndex: 1200,
+                            pointerEvents: "none",
+                            width: 340,
+                            maxWidth: "calc(100vw - 24px)",
+                            border: "1px solid var(--color-stroke-primary)",
+                            borderRadius: 10,
+                            background: "var(--color-surface-primary)",
+                            color: "var(--color-text-default)",
+                            boxShadow: "var(--shadow-medium)",
+                            padding: 10,
+                            display: "grid",
+                            gap: 6,
+                            fontSize: 12,
+                          }}
+                        >
+                          <div style={{ fontFamily: "var(--font-semibold)" }}>
+                            {jointExposureHover.assetClass} / {jointExposureHover.column}
+                          </div>
+                          <div>Amount: {formatMoney(jointExposureHover.amountEur, "EUR")}</div>
+                          <div>
+                            Actual: {jointExposureHover.pct.toFixed(1)}% | Expected: {jointExposureHover.expectedPct.toFixed(1)}% | Deviation: {jointExposureHover.deviationPct >= 0 ? "+" : ""}
+                            {jointExposureHover.deviationPct.toFixed(1)}%
+                          </div>
+                          <div style={{ color: "var(--color-text-subtle)" }}>Top contributors</div>
+                          <div style={{ display: "grid", gap: 4 }}>
+                            {jointExposureHover.topContributors.length > 0 ? (
+                              jointExposureHover.topContributors.map((item) => (
+                                <div key={item.label} style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.label}</span>
+                                  <span style={{ whiteSpace: "nowrap" }}>{formatMoney(item.amountEur, "EUR")}</span>
+                                </div>
+                              ))
+                            ) : (
+                              <div style={{ color: "var(--color-text-subtle)" }}>No contributors</div>
+                            )}
+                          </div>
+                        </div>
+                      ) : null}
                     </>
                   )}
                 </div>
 
-                <div style={{ fontSize: 12, color: "var(--color-text-subtle)" }}>
-                  <strong style={{ color: "var(--color-text-default)" }}>Top imbalances:</strong>{" "}
-                  {jointExposure.topImbalances.length > 0
-                    ? jointExposure.topImbalances
-                        .map((item) => `${item.assetClass} / ${item.column} (${item.deviationPct >= 0 ? "+" : ""}${item.deviationPct.toFixed(1)}%)`)
-                        .join("; ")
-                    : "No significant imbalance detected."}
-                </div>
               </div>
             </SurfaceCard>
 
