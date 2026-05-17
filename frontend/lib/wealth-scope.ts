@@ -61,10 +61,26 @@ export function scopeAccounts(accounts: Account[], scope: WealthScope): Account[
     .filter((account) => {
       if (scope.ownerId !== ALL_SCOPE_VALUE && account.ownerId !== scope.ownerId && account.coOwnerId !== scope.ownerId) return false;
       if (scope.accountType !== ALL_SCOPE_VALUE && account.type !== scope.accountType) return false;
-      if (scope.currency !== ALL_SCOPE_VALUE && account.currency !== scope.currency) return false;
+      if (scope.currency !== ALL_SCOPE_VALUE) {
+        if (account.currency !== scope.currency) {
+          // If the account has portfolio lines, check if any line matches the currency
+          if (!account.portfolioLines?.some(line => line.currency === scope.currency)) {
+            return false;
+          }
+        }
+      }
       return true;
     })
-    .map((account) => adjustAccountByOwnership(account, scope.ownerId));
+    .map((account) => {
+      const adjusted = adjustAccountByOwnership(account, scope.ownerId);
+      // Always filter portfolioLines by currency if needed
+      return {
+        ...adjusted,
+        portfolioLines: adjusted.portfolioLines
+          ? adjusted.portfolioLines.filter(line => scope.currency === ALL_SCOPE_VALUE || line.currency === scope.currency)
+          : undefined,
+      };
+    });
 }
 
 export function latestScopedDate(accounts: Account[]): string | null {

@@ -259,10 +259,16 @@ export default function WealthDashboardPage() {
     () => Array.from(new Set(accounts.map((account) => account.type))).sort().map((value) => ({ value, label: value })),
     [accounts],
   );
-  const currencyOptions = useMemo(
-    () => Array.from(new Set(accounts.map((account) => account.currency))).sort().map((value) => ({ value, label: value })),
-    [accounts],
-  );
+  const currencyOptions = useMemo(() => {
+    const currencySet = new Set<string>();
+    accounts.forEach(account => {
+      currencySet.add(account.currency);
+      account.portfolioLines?.forEach(line => {
+        if (line.currency) currencySet.add(line.currency);
+      });
+    });
+    return Array.from(currencySet).sort().map((value) => ({ value, label: value }));
+  }, [accounts]);
 
   const ownerFilterValues = useMemo(
     () => new Set([ALL_SCOPE_VALUE, ...ownerOptions.map((option) => option.id)]),

@@ -407,6 +407,7 @@ export function buildDecompositionRows(params: RealEstateParams): DecompositionR
   const downPayment = housePrice * downPaymentRatio;
   const purchaseTax = calculatePurchaseTax(housePrice);
   const loanAmount = housePrice - downPayment;
+  const initialOperationInvestment = housePrice + purchaseTax;
   const monthlyPayment = calculateMonthlyMortgagePayment(loanAmount, mortgageRateDec, mortgageTerm);
 
   const rows: DecompositionRow[] = [];
@@ -465,7 +466,7 @@ export function buildDecompositionRows(params: RealEstateParams): DecompositionR
       principal: annualPrincipal,
       netCF,
       netCFAllCash,
-      leverage: loanAmount > 0 ? (netCFAllCash / loanAmount) * 100 : null,
+      leverage: initialOperationInvestment > 0 ? (netCFAllCash / initialOperationInvestment) * 100 : null,
     });
   }
 

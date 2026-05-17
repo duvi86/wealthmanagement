@@ -129,7 +129,7 @@ function DecompositionTable({ rows }: { rows: DecompositionRow[] }) {
     { short: "Prin", full: "Principal", description: "Annual mortgage principal repaid" },
     { short: "Net CF", full: "Net Cash Flow", description: "Net annual cash flow after all costs and debt service" },
     { short: "CF-Cash", full: "Cash-Only Cash Flow", description: "Net annual cash flow if the property was fully paid in cash" },
-    { short: "Lev.", full: "Leverage Return", description: "Cash flow return as a percentage of financed amount" },
+    { short: "Lev.", full: "Leverage Return", description: "Cash flow return as a percentage of total initial operation investment (purchase price + purchase tax)" },
   ];
   const activeHeaderMeta = headers.find((h) => h.short === activeHeader) ?? null;
 
