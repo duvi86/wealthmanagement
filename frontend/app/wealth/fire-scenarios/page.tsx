@@ -389,6 +389,10 @@ function findFireMilestoneFromTrajectory(params: {
   postRetirementWorkIncomeEur: number;
   inflationPct: number;
   withdrawalRatePct: number;
+  capitalStrategy: "protect" | "deplete";
+  afterTaxReturnPct: number;
+  currentAge: number;
+  expectedLifetime: number;
 }) {
   const {
     trajectory,
@@ -397,6 +401,10 @@ function findFireMilestoneFromTrajectory(params: {
     postRetirementWorkIncomeEur,
     inflationPct,
     withdrawalRatePct,
+    capitalStrategy,
+    afterTaxReturnPct,
+    currentAge,
+    expectedLifetime,
   } = params;
 
   const safeWithdrawalRate = Math.max(0.1, withdrawalRatePct) / 100;
@@ -413,7 +421,19 @@ function findFireMilestoneFromTrajectory(params: {
       0,
       annualExpensesEur * inflationFactor - postRetirementWorkIncomeEur * inflationFactor,
     );
-    const requiredPortfolio = annualNeed / safeWithdrawalRate;
+    let requiredPortfolio = annualNeed / safeWithdrawalRate;
+
+    if (capitalStrategy === "deplete") {
+      const yearsRemaining = Math.max(1, expectedLifetime - (currentAge + yearsFromStart));
+      const r = afterTaxReturnPct / 100;
+
+      if (Math.abs(r) < 1e-9) {
+        requiredPortfolio = annualNeed * yearsRemaining;
+      } else {
+        requiredPortfolio = annualNeed * ((1 - (1 + r) ** -yearsRemaining) / r);
+      }
+    }
+
     const surplus = point.portfolioEur - requiredPortfolio;
 
     if (surplus >= 0) {
@@ -608,6 +628,10 @@ function mockCalc(w: WizardState, profile: { currentAge: number; expectedLifetim
     postRetirementWorkIncomeEur: w.postRetirementWorkIncomeEur,
     inflationPct: w.inflationPct,
     withdrawalRatePct: adjustedWithdrawalRate,
+    capitalStrategy: w.capitalStrategy,
+    afterTaxReturnPct: afterTaxReturn,
+    currentAge: profile.currentAge,
+    expectedLifetime: profile.expectedLifetime,
   });
 
   const yearsToFire = yearsToFireSim.yearsToFire;
@@ -633,6 +657,10 @@ function mockCalc(w: WizardState, profile: { currentAge: number; expectedLifetim
         postRetirementWorkIncomeEur: w.postRetirementWorkIncomeEur,
         inflationPct: w.inflationPct,
         withdrawalRatePct: adjustedWithdrawalRate,
+        capitalStrategy: w.capitalStrategy,
+        afterTaxReturnPct: afterTaxReturn,
+        currentAge: profile.currentAge,
+        expectedLifetime: profile.expectedLifetime,
       })
     : null;
 
@@ -744,6 +772,10 @@ function mockCalc(w: WizardState, profile: { currentAge: number; expectedLifetim
       postRetirementWorkIncomeEur: w.postRetirementWorkIncomeEur,
       inflationPct: w.inflationPct,
       withdrawalRatePct: adjustedWithdrawalRate,
+      capitalStrategy: w.capitalStrategy,
+      afterTaxReturnPct: scenarioAfterTaxReturn,
+      currentAge: profile.currentAge,
+      expectedLifetime: profile.expectedLifetime,
     }).yearsToFire;
   };
 
