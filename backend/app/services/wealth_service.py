@@ -234,8 +234,20 @@ def _compute_snapshot_totals(db: Session, snapshot_date_str: str, allow_empty: b
                 snapshot_date_str,
             )
             value_eur = -balance * account.fx_to_eur
-        else:
-            value_eur = account.native_balance * account.fx_to_eur
+
+            liabilities_eur += abs(value_eur)
+            continue
+
+        if account.portfolio_lines:
+            for line in account.portfolio_lines:
+                line_value_eur = float(line.native_amount) * float(line.fx_to_eur)
+                if line_value_eur < 0:
+                    liabilities_eur += abs(line_value_eur)
+                else:
+                    assets_eur += line_value_eur
+            continue
+
+        value_eur = account.native_balance * account.fx_to_eur
 
         if account.type == "Loan" or value_eur < 0:
             liabilities_eur += abs(value_eur)

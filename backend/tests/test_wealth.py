@@ -240,6 +240,63 @@ async def test_create_snapshot_requires_accounts_for_date(client: AsyncClient):
 
 
 @pytest.mark.anyio
+async def test_snapshot_splits_negative_portfolio_lines_into_liabilities(client: AsyncClient):
+    account_id = f"a-snapshot-lines-{uuid4().hex[:8]}"
+    snapshot_id = f"s-lines-{uuid4().hex[:8]}"
+    account_payload = {
+        "id": account_id,
+        "owner_id": "owner-matthieu-duvinage",
+        "owner_name": "Matthieu Duvinage",
+        "account_name": "Snapshot Line Split Account",
+        "institution": "Test Broker",
+        "type": "Investment",
+        "currency": "EUR",
+        "native_balance": 0.0,
+        "fx_to_eur": 1.0,
+        "expected_return_pct": 0.0,
+        "updated_at": "2026-05-15",
+        "portfolio_lines": [
+            {
+                "id": f"pl-{uuid4().hex[:8]}",
+                "label": "Positive leg",
+                "allocation_bucket": "Stocks",
+                "area": "Europe",
+                "market_type": "Developed Market",
+                "currency": "EUR",
+                "native_amount": 100.0,
+                "fx_to_eur": 1.0,
+                "expected_return_pct": 5.0,
+            },
+            {
+                "id": f"pl-{uuid4().hex[:8]}",
+                "label": "Negative leg",
+                "allocation_bucket": "Stocks",
+                "area": "Europe",
+                "market_type": "Developed Market",
+                "currency": "EUR",
+                "native_amount": -30.0,
+                "fx_to_eur": 1.0,
+                "expected_return_pct": 5.0,
+            },
+        ],
+    }
+
+    account_resp = await client.post("/api/wealth/accounts", json=account_payload)
+    assert account_resp.status_code == 201
+
+    snapshot_resp = await client.post(
+        "/api/wealth/snapshots",
+        json={"id": snapshot_id, "date": "2026-05-15", "note": "Line-level split test"},
+    )
+    assert snapshot_resp.status_code == 201
+    body = snapshot_resp.json()
+
+    assert body["assets_eur"] == pytest.approx(100.0)
+    assert body["liabilities_eur"] == pytest.approx(30.0)
+    assert body["net_worth_eur"] == pytest.approx(70.0)
+
+
+@pytest.mark.anyio
 async def test_list_fire_scenarios(client: AsyncClient):
     resp = await client.get("/api/wealth/fire-scenarios")
     assert resp.status_code == 200
