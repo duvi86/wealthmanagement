@@ -30,7 +30,13 @@ import {
   toDateKey,
 } from "@/lib/wealth-scope";
 import { Skeleton } from "@/components/ui/loading";
-import { useWealthAccounts, useWealthFireScenarios, type WealthFireScenario } from "@/hooks/use-api";
+import {
+  useWealthAccounts,
+  useWealthFireScenarios,
+  useWealthPersonProfiles,
+  type WealthFireScenario,
+  type WealthPersonProfile,
+} from "@/hooks/use-api";
 
 type TrendResolution = "monthly" | "quarterly" | "yearly";
 type MarketGroup = "Developed" | "Emerging";
@@ -47,36 +53,60 @@ const FIRE_TARGET_COLORS = [
   "var(--color-chart-series-10)",
 ];
 
-function getProfileAssumptions(scope: WealthFireScenario["profileScope"]) {
+type ProfileMember = {
+  id: string;
+  currentAge: number;
+};
+
+function getProfileAssumptions(scope: WealthFireScenario["profileScope"], members: ProfileMember[]) {
+  const fallbackMembers: ProfileMember[] = members.length
+    ? members
+    : wealthProfile.members.map((member, idx) => ({
+        id: idx === 0 ? "p-1" : "p-2",
+        currentAge: member.currentAge,
+      }));
+
   if (scope === "both") {
     const avgAge =
-      wealthProfile.members.reduce((sum, member) => sum + member.currentAge, 0) /
-      Math.max(1, wealthProfile.members.length);
+      fallbackMembers.reduce((sum, member) => sum + member.currentAge, 0) /
+      Math.max(1, fallbackMembers.length);
     return { currentAge: avgAge };
   }
 
-  const selected = wealthProfile.members.find((member) => member.id === scope) ?? wealthProfile.members[0];
+  const selected = fallbackMembers.find((member) => member.id === scope) ?? fallbackMembers[0];
   return { currentAge: selected.currentAge };
 }
 
-function computeFireTargetEur(scenario: WealthFireScenario): number {
-  const profile = getProfileAssumptions(scenario.profileScope);
+function getRetirementAnnualExpenseEur(scenario: WealthFireScenario): number {
+  if (scenario.useCustomRetirementExpense) {
+    return Math.max(0, scenario.retirementAnnualExpenseEur ?? scenario.annualExpensesEur);
+  }
+  return Math.max(0, scenario.annualExpensesEur);
+}
+
+function computeFireTargetEur(scenario: WealthFireScenario, profileMembers: ProfileMember[]): number {
+  const profile = getProfileAssumptions(scenario.profileScope, profileMembers);
   const baseYear = 2026;
   const yearsToTargetAgeExact = Math.max(0, scenario.targetRetirementAge - profile.currentAge);
   const targetRetirementYear = baseYear + Math.round(yearsToTargetAgeExact);
   const yearsToTargetRetirementYear = Math.max(0, targetRetirementYear - baseYear);
   const inflationToTarget = (1 + scenario.inflationPct / 100) ** yearsToTargetRetirementYear;
+  const retirementAnnualExpenseEur = getRetirementAnnualExpenseEur(scenario);
   const expenseGapAtRetirement = Math.max(
     0,
-    scenario.annualExpensesEur * inflationToTarget - scenario.postRetirementWorkIncomeEur * inflationToTarget,
+    retirementAnnualExpenseEur * inflationToTarget - scenario.postRetirementWorkIncomeEur * inflationToTarget,
   );
   const safeWithdrawalRate = Math.max(0.1, scenario.withdrawalRatePct) / 100;
   return Math.round(expenseGapAtRetirement / safeWithdrawalRate);
 }
 
-function computeComparableFireTargetEur(scenario: WealthFireScenario, fullCurrentNetWorthEur: number): number {
-  const baseTarget = computeFireTargetEur(scenario);
-  // Dashboard trend uses full household net worth; add back scenario-excluded wealth for apples-to-apples comparison.
+function computeComparableFireTargetEur(
+  scenario: WealthFireScenario,
+  profileMembers: ProfileMember[],
+  fullCurrentNetWorthEur: number,
+): number {
+  const baseTarget = computeFireTargetEur(scenario, profileMembers);
+  // Add non-scenario wealth back so the target line is comparable to total net worth trend.
   const excludedCurrentWealth = Math.max(0, fullCurrentNetWorthEur - scenario.startingPortfolioEur);
   return Math.round(baseTarget + excludedCurrentWealth);
 }
@@ -223,12 +253,22 @@ export default function WealthDashboardPage() {
 
   const { data: rawAccounts = [], isLoading: accountsLoading, isError: accountsError } = useWealthAccounts();
   const { data: rawFireScenarios = [] } = useWealthFireScenarios();
+  const { data: rawPersonProfiles = [] } = useWealthPersonProfiles();
   const currentMonthKey = useMemo(() => formatMonthKey(new Date()), []);
   const accounts = useMemo(
     () => normalizeLoanBalancesForMonth(rawAccounts as Account[], currentMonthKey),
     [currentMonthKey, rawAccounts],
   );
   const fireScenarios = rawFireScenarios as WealthFireScenario[];
+  const profileMembers = useMemo<ProfileMember[]>(() => {
+    const personProfiles = (rawPersonProfiles as WealthPersonProfile[]).filter((profile) => profile.isActive !== false);
+    const sorted = [...personProfiles].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    const selected = sorted.slice(0, 2);
+    return selected.map((person, idx) => ({
+      id: idx === 0 ? "p-1" : "p-2",
+      currentAge: Number(person.currentAge ?? 40),
+    }));
+  }, [rawPersonProfiles]);
   const isLoading = accountsLoading;
   const isError = accountsError;
   const [jointExposureHover, setJointExposureHover] = useState<{
@@ -396,9 +436,9 @@ export default function WealthDashboardPage() {
         dataKey: `fireScenarioTarget_${scenario.id}`,
         name: scenario.name,
         color: FIRE_TARGET_COLORS[index % FIRE_TARGET_COLORS.length],
-        targetEur: computeComparableFireTargetEur(scenario, totals.netWorth),
+        targetEur: computeComparableFireTargetEur(scenario, profileMembers, totals.netWorth),
       })),
-    [fireScenarios, totals.netWorth],
+    [fireScenarios, profileMembers, totals.netWorth],
   );
   const trendWithTargets = useMemo(
     () =>

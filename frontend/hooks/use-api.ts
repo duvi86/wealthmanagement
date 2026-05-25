@@ -430,6 +430,8 @@ export type WealthFireScenario = {
   name: string;
   annualIncomeEur: number;
   annualExpensesEur: number;
+  useCustomRetirementExpense?: boolean;
+  retirementAnnualExpenseEur?: number;
   returnPct: number;
   taxRatePct: number;
   inflationPct: number;

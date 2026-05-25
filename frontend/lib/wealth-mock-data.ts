@@ -576,6 +576,8 @@ export type FireScenario = {
   status: "On Track" | "Lagging" | "Reached" | "At Risk";
   annualIncomeEur: number;
   annualExpensesEur: number;
+  useCustomRetirementExpense?: boolean;
+  retirementAnnualExpenseEur?: number;
   returnPct: number;
   taxRatePct: number;
   inflationPct: number;

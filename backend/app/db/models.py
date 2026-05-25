@@ -190,6 +190,8 @@ class WealthFireScenario(Base):
     profile_scope = Column(String, nullable=False, default="both")  # p-1 | p-2 | both
     target_retirement_age = Column(Integer, nullable=False)
     post_retirement_work_income_eur = Column(Float, default=0.0)
+    use_custom_retirement_expense = Column(Boolean, nullable=False, default=False)
+    retirement_annual_expense_eur = Column(Float, nullable=False, default=0.0)
     capital_strategy = Column(String, default="protect")  # protect | deplete
     starting_portfolio_eur = Column(Float, nullable=False)
     on_trajectory = Column(Boolean, default=True)

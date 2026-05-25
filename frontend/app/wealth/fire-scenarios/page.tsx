@@ -67,6 +67,8 @@ type WizardState = {
   name: string;
   annualIncomeEur: number;
   annualExpensesEur: number;
+  useCustomRetirementExpense: boolean;
+  retirementAnnualExpenseEur: number;
   returnPct: number;
   taxRatePct: number;
   inflationPct: number;
@@ -94,6 +96,8 @@ const initialWizard: WizardState = {
   name: "",
   annualIncomeEur: 128000,
   annualExpensesEur: 70000,
+  useCustomRetirementExpense: false,
+  retirementAnnualExpenseEur: 70000,
   returnPct: 6,
   taxRatePct: 24,
   inflationPct: 2,
@@ -186,6 +190,18 @@ function getProfileAssumptions(scope: ProfileScope, members: ProfileMember[]) {
     currentAge: selected.currentAge,
     expectedLifetime: selected.expectedLifetime,
   };
+}
+
+function getRetirementAnnualExpenseEur(params: {
+  annualExpensesEur: number;
+  useCustomRetirementExpense: boolean;
+  retirementAnnualExpenseEur: number;
+}) {
+  const fallback = Math.max(0, params.annualExpensesEur);
+  if (!params.useCustomRetirementExpense) {
+    return fallback;
+  }
+  return Math.max(0, params.retirementAnnualExpenseEur);
 }
 
 function buildRetirementTargetSeries(
@@ -526,6 +542,7 @@ function simulateSuccessRate(
   const retirementYearsEstimate = Math.max(1, Math.round(profile.expectedLifetime - w.targetRetirementAge));
   const simulationEndYear = targetRetirementYear + retirementYearsEstimate;
   const annualSavings = Math.max(0, w.annualIncomeEur - w.annualExpensesEur);
+  const retirementAnnualExpenseEur = getRetirementAnnualExpenseEur(w);
   const scenarioAdjustments = [-3.0, -2.0, -1.5, -1.0, -0.5, 0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0];
   const safeWithdrawalRate = Math.max(0.1, w.withdrawalRatePct) / 100;
 
@@ -539,7 +556,7 @@ function simulateSuccessRate(
       w.startingPortfolioEur,
       annualSavings,
       scenarioAfterTaxReturn,
-      w.annualExpensesEur,
+      retirementAnnualExpenseEur,
       w.postRetirementWorkIncomeEur,
       w.capitalStrategy,
       w.inflationPct,
@@ -550,7 +567,7 @@ function simulateSuccessRate(
     const targetInflationFactor = (1 + w.inflationPct / 100) ** yearsToTargetAge;
     const targetYearGap = Math.max(
       0,
-      w.annualExpensesEur * targetInflationFactor - w.postRetirementWorkIncomeEur * targetInflationFactor,
+      retirementAnnualExpenseEur * targetInflationFactor - w.postRetirementWorkIncomeEur * targetInflationFactor,
     );
     const requiredPortfolio = targetYearGap / safeWithdrawalRate;
     const finalValue = series[series.length - 1]?.portfolioEur ?? 0;
@@ -567,7 +584,7 @@ function simulateSuccessRate(
           const inflationFactor = (1 + w.inflationPct / 100) ** yearsFromStart;
           const currentExpenseGap = Math.max(
             0,
-            w.annualExpensesEur * inflationFactor - w.postRetirementWorkIncomeEur * inflationFactor,
+            retirementAnnualExpenseEur * inflationFactor - w.postRetirementWorkIncomeEur * inflationFactor,
           );
           const currentRequired = currentExpenseGap / safeWithdrawalRate;
           if ((series[i]?.portfolioEur ?? 0) < currentRequired) {
@@ -595,13 +612,14 @@ function mockCalc(w: WizardState, profile: { currentAge: number; expectedLifetim
   const maxProjectionYears = 80;
   const maxProjectionYear = baseYear + maxProjectionYears;
   const annualSavings = Math.max(0, w.annualIncomeEur - w.annualExpensesEur);
+  const retirementAnnualExpenseEur = getRetirementAnnualExpenseEur(w);
   const yearsToTargetAgeExact = Math.max(0, w.targetRetirementAge - profile.currentAge);
   const targetRetirementYear = baseYear + Math.round(yearsToTargetAgeExact);
   const yearsToTargetRetirementYear = Math.max(0, targetRetirementYear - baseYear);
   const inflationToTarget = (1 + w.inflationPct / 100) ** yearsToTargetRetirementYear;
   const annualExpenseGapInRetirement = Math.max(
     0,
-    w.annualExpensesEur * inflationToTarget - w.postRetirementWorkIncomeEur * inflationToTarget,
+    retirementAnnualExpenseEur * inflationToTarget - w.postRetirementWorkIncomeEur * inflationToTarget,
   );
   const retirementYearsEstimate = Math.max(10, profile.expectedLifetime - w.targetRetirementAge);
   const adjustedWithdrawalRate = w.withdrawalRatePct;
@@ -614,7 +632,7 @@ function mockCalc(w: WizardState, profile: { currentAge: number; expectedLifetim
     w.startingPortfolioEur,
     annualSavings,
     afterTaxReturn,
-    w.annualExpensesEur,
+    retirementAnnualExpenseEur,
     w.postRetirementWorkIncomeEur,
     w.capitalStrategy,
     w.inflationPct,
@@ -624,7 +642,7 @@ function mockCalc(w: WizardState, profile: { currentAge: number; expectedLifetim
   const yearsToFireSim = findFireMilestoneFromTrajectory({
     trajectory: fullTrajectory,
     startYear: baseYear,
-    annualExpensesEur: w.annualExpensesEur,
+    annualExpensesEur: retirementAnnualExpenseEur,
     postRetirementWorkIncomeEur: w.postRetirementWorkIncomeEur,
     inflationPct: w.inflationPct,
     withdrawalRatePct: adjustedWithdrawalRate,
@@ -647,13 +665,13 @@ function mockCalc(w: WizardState, profile: { currentAge: number; expectedLifetim
           w.startingPortfolioEur,
           annualSavings,
           afterTaxReturn,
-          w.annualExpensesEur,
+          retirementAnnualExpenseEur,
           w.postRetirementWorkIncomeEur,
           w.capitalStrategy,
           w.inflationPct,
         ),
         startYear: baseYear,
-        annualExpensesEur: w.annualExpensesEur,
+        annualExpensesEur: retirementAnnualExpenseEur,
         postRetirementWorkIncomeEur: w.postRetirementWorkIncomeEur,
         inflationPct: w.inflationPct,
         withdrawalRatePct: adjustedWithdrawalRate,
@@ -670,7 +688,7 @@ function mockCalc(w: WizardState, profile: { currentAge: number; expectedLifetim
     0;
   const targetAnnualNeedAtTargetAge = Math.max(
     0,
-    w.annualExpensesEur * inflationToTarget - w.postRetirementWorkIncomeEur * inflationToTarget,
+    retirementAnnualExpenseEur * inflationToTarget - w.postRetirementWorkIncomeEur * inflationToTarget,
   );
   const requiredPortfolioAtTargetAge = Math.round(targetAnnualNeedAtTargetAge / Math.max(0.001, adjustedWithdrawalRate / 100));
   const retirementYearGap = yearsToFireSim.reached ? fireYear - targetRetirementYear : Number.NaN;
@@ -707,7 +725,7 @@ function mockCalc(w: WizardState, profile: { currentAge: number; expectedLifetim
       w.startingPortfolioEur,
       annualSavings,
       scenarioAfterTaxReturn,
-      w.annualExpensesEur,
+      retirementAnnualExpenseEur,
       w.postRetirementWorkIncomeEur,
       w.capitalStrategy,
       w.inflationPct,
@@ -735,7 +753,7 @@ function mockCalc(w: WizardState, profile: { currentAge: number; expectedLifetim
     w.startingPortfolioEur,
     annualSavings,
     afterTaxReturn - 2,
-    w.annualExpensesEur,
+    retirementAnnualExpenseEur,
     w.postRetirementWorkIncomeEur,
     w.capitalStrategy,
     w.inflationPct,
@@ -760,7 +778,7 @@ function mockCalc(w: WizardState, profile: { currentAge: number; expectedLifetim
       w.startingPortfolioEur,
       annualSavings,
       scenarioAfterTaxReturn,
-      w.annualExpensesEur,
+      retirementAnnualExpenseEur,
       w.postRetirementWorkIncomeEur,
       w.capitalStrategy,
       w.inflationPct,
@@ -768,7 +786,7 @@ function mockCalc(w: WizardState, profile: { currentAge: number; expectedLifetim
     return findFireMilestoneFromTrajectory({
       trajectory: scenarioTrajectory,
       startYear: baseYear,
-      annualExpensesEur: w.annualExpensesEur,
+      annualExpensesEur: retirementAnnualExpenseEur,
       postRetirementWorkIncomeEur: w.postRetirementWorkIncomeEur,
       inflationPct: w.inflationPct,
       withdrawalRatePct: adjustedWithdrawalRate,
@@ -818,6 +836,8 @@ function mapScenarioToWizard(scenario: FireScenario): WizardState {
     name: scenario.name,
     annualIncomeEur: scenario.annualIncomeEur,
     annualExpensesEur: scenario.annualExpensesEur,
+    useCustomRetirementExpense: scenario.useCustomRetirementExpense ?? false,
+    retirementAnnualExpenseEur: scenario.retirementAnnualExpenseEur ?? scenario.annualExpensesEur,
     returnPct: scenario.returnPct,
     taxRatePct: scenario.taxRatePct,
     inflationPct: scenario.inflationPct,
@@ -838,6 +858,7 @@ function checkScenarioSuccess(
 ) {
   const yearsToTargetAge = Math.max(0, targetRetirementYear - 2026);
   const annualSavings = Math.max(0, w.annualIncomeEur - w.annualExpensesEur);
+  const retirementAnnualExpenseEur = getRetirementAnnualExpenseEur(w);
   const safeWithdrawalRate = Math.max(0.1, w.withdrawalRatePct) / 100;
   const scenarioAfterTaxReturn = Math.max(-0.95, (w.returnPct + adjustment) * (1 - w.taxRatePct / 100));
   const retirementYearsEstimate = Math.max(1, Math.round(profile.expectedLifetime - w.targetRetirementAge));
@@ -850,7 +871,7 @@ function checkScenarioSuccess(
     w.startingPortfolioEur,
     annualSavings,
     scenarioAfterTaxReturn,
-    w.annualExpensesEur,
+    retirementAnnualExpenseEur,
     w.postRetirementWorkIncomeEur,
     w.capitalStrategy,
     w.inflationPct,
@@ -863,7 +884,7 @@ function checkScenarioSuccess(
   const inflationFactor = (1 + w.inflationPct / 100) ** yearsToTargetAge;
   const expenseGapAtRetirement = Math.max(
     0,
-    w.annualExpensesEur * inflationFactor - w.postRetirementWorkIncomeEur * inflationFactor,
+    retirementAnnualExpenseEur * inflationFactor - w.postRetirementWorkIncomeEur * inflationFactor,
   );
   const requiredAtRetirement = expenseGapAtRetirement / safeWithdrawalRate;
 
@@ -876,6 +897,8 @@ function backendToFireScenario(s: WealthFireScenario, members: ProfileMember[]):
     name: s.name,
     annualIncomeEur: s.annualIncomeEur,
     annualExpensesEur: s.annualExpensesEur,
+    useCustomRetirementExpense: s.useCustomRetirementExpense ?? false,
+    retirementAnnualExpenseEur: s.retirementAnnualExpenseEur ?? s.annualExpensesEur,
     returnPct: s.returnPct,
     taxRatePct: s.taxRatePct,
     inflationPct: s.inflationPct,
@@ -908,6 +931,8 @@ function backendToFireScenario(s: WealthFireScenario, members: ProfileMember[]):
     status,
     annualIncomeEur: s.annualIncomeEur,
     annualExpensesEur: s.annualExpensesEur,
+    useCustomRetirementExpense: s.useCustomRetirementExpense ?? false,
+    retirementAnnualExpenseEur: s.retirementAnnualExpenseEur ?? s.annualExpensesEur,
     returnPct: s.returnPct,
     taxRatePct: s.taxRatePct,
     inflationPct: s.inflationPct,
@@ -1096,10 +1121,17 @@ export default function WealthFireScenariosPage() {
           : `Target retirement age must be between ${Math.ceil(profileAssumptions.currentAge + 1)} and ${Math.floor(profileAssumptions.expectedLifetime)}.`,
       postRetirementWorkIncomeEur:
         wizard.postRetirementWorkIncomeEur >= 0 ? "" : "Post-retirement income cannot be negative.",
+      retirementAnnualExpenseEur:
+        !wizard.useCustomRetirementExpense ||
+        (Number.isFinite(wizard.retirementAnnualExpenseEur) && wizard.retirementAnnualExpenseEur >= 0)
+          ? ""
+          : "Retirement annual expenses must be zero or higher.",
     }),
     [
       wizard.targetRetirementAge,
       wizard.postRetirementWorkIncomeEur,
+      wizard.useCustomRetirementExpense,
+      wizard.retirementAnnualExpenseEur,
       profileAssumptions.currentAge,
       profileAssumptions.expectedLifetime,
     ],
@@ -1107,7 +1139,7 @@ export default function WealthFireScenariosPage() {
   const canProceedStep1 = !step1Errors.startingPortfolioEur;
   const canProceedStep2 = !step2Errors.annualIncomeEur && !step2Errors.annualExpensesEur;
   const canProceedStep3 = !step3Errors.inflationPct;
-  const canProceedStep4 = !step4Errors.targetRetirementAge && !step4Errors.postRetirementWorkIncomeEur;
+  const canProceedStep4 = !step4Errors.targetRetirementAge && !step4Errors.postRetirementWorkIncomeEur && !step4Errors.retirementAnnualExpenseEur;
   const selectedComputed = useMemo(() => {
     if (!selected) return null;
     const selectedWizard = mapScenarioToWizard(selected);
@@ -1125,7 +1157,7 @@ export default function WealthFireScenariosPage() {
       startingPortfolioEur: wizard.startingPortfolioEur,
       annualSavingsEur: annualSavings,
       afterTaxReturnPct: computed.afterTaxReturn,
-      annualExpensesEur: wizard.annualExpensesEur,
+      annualExpensesEur: getRetirementAnnualExpenseEur(wizard),
       postRetirementWorkIncomeEur: wizard.postRetirementWorkIncomeEur,
       inflationPct: wizard.inflationPct,
     });
@@ -1146,7 +1178,11 @@ export default function WealthFireScenariosPage() {
       startingPortfolioEur: selected.startingPortfolioEur,
       annualSavingsEur: annualSavings,
       afterTaxReturnPct: selectedComputed.afterTaxReturn,
-      annualExpensesEur: selected.annualExpensesEur,
+      annualExpensesEur: getRetirementAnnualExpenseEur({
+        annualExpensesEur: selected.annualExpensesEur,
+        useCustomRetirementExpense: selected.useCustomRetirementExpense ?? false,
+        retirementAnnualExpenseEur: selected.retirementAnnualExpenseEur ?? selected.annualExpensesEur,
+      }),
       postRetirementWorkIncomeEur: selected.postRetirementWorkIncomeEur,
       inflationPct: selected.inflationPct,
     });
@@ -1167,6 +1203,8 @@ export default function WealthFireScenariosPage() {
       name: wizard.name || "New Scenario",
       annualIncomeEur: wizard.annualIncomeEur,
       annualExpensesEur: wizard.annualExpensesEur,
+      useCustomRetirementExpense: wizard.useCustomRetirementExpense,
+      retirementAnnualExpenseEur: wizard.retirementAnnualExpenseEur,
       returnPct: wizard.returnPct,
       taxRatePct: wizard.taxRatePct,
       inflationPct: wizard.inflationPct,
@@ -1514,7 +1552,16 @@ export default function WealthFireScenariosPage() {
               type="number"
               label="Annual expenses (EUR)"
               value={wizard.annualExpensesEur}
-              onChange={(e) => setWizard((p) => ({ ...p, annualExpensesEur: Number(e.target.value) }))}
+              onChange={(e) =>
+                setWizard((p) => {
+                  const annualExpensesEur = Number(e.target.value);
+                  return {
+                    ...p,
+                    annualExpensesEur,
+                    retirementAnnualExpenseEur: p.useCustomRetirementExpense ? p.retirementAnnualExpenseEur : annualExpensesEur,
+                  };
+                })
+              }
               error={step2Errors.annualExpensesEur}
             />
           </FormContainer>
@@ -1683,6 +1730,53 @@ export default function WealthFireScenariosPage() {
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 6 }}>
+                  Different retirement expenses?
+                </label>
+                <div style={{ display: "flex", gap: 16, minHeight: 40, alignItems: "center", border: "1px solid var(--color-border-subtle)", borderRadius: 8, padding: "8px 12px" }}>
+                  <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13 }}>
+                    <input
+                      type="radio"
+                      name="use-custom-retirement-expense"
+                      checked={!wizard.useCustomRetirementExpense}
+                      onChange={() =>
+                        setWizard((p) => ({
+                          ...p,
+                          useCustomRetirementExpense: false,
+                        }))
+                      }
+                    />
+                    No
+                  </label>
+                  <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13 }}>
+                    <input
+                      type="radio"
+                      name="use-custom-retirement-expense"
+                      checked={wizard.useCustomRetirementExpense}
+                      onChange={() =>
+                        setWizard((p) => ({
+                          ...p,
+                          useCustomRetirementExpense: true,
+                          retirementAnnualExpenseEur: p.useCustomRetirementExpense ? p.retirementAnnualExpenseEur : p.annualExpensesEur,
+                        }))
+                      }
+                    />
+                    Yes
+                  </label>
+                </div>
+              </div>
+              <FormInput
+                type="number"
+                label="Retirement annual expenses (EUR/yr)"
+                value={wizard.retirementAnnualExpenseEur}
+                disabled={!wizard.useCustomRetirementExpense}
+                onChange={(e) => setWizard((p) => ({ ...p, retirementAnnualExpenseEur: Number(e.target.value) }))}
+                error={step4Errors.retirementAnnualExpenseEur}
+              />
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <FormInput
                 type="number"
                 label="Target retirement age"
@@ -1752,7 +1846,7 @@ export default function WealthFireScenariosPage() {
                               ...point,
                               targetPortfolioEur: buildRetirementTargetSeries(
                                 computed.series.map((s) => s.period),
-                                wizard.annualExpensesEur,
+                                    getRetirementAnnualExpenseEur(wizard),
                                 computed.adjustedWithdrawalRate,
                                 wizard.inflationPct,
                                 wizard.postRetirementWorkIncomeEur,
@@ -1944,10 +2038,14 @@ export default function WealthFireScenariosPage() {
                                   ...point,
                                   targetPortfolioEur: buildRetirementTargetSeries(
                                     selectedComputed.series.map((s) => s.period),
-                                    selected.annualExpensesEur,
+                                    getRetirementAnnualExpenseEur({
+                                      annualExpensesEur: selected.annualExpensesEur,
+                                      useCustomRetirementExpense: selected.useCustomRetirementExpense ?? false,
+                                      retirementAnnualExpenseEur: selected.retirementAnnualExpenseEur ?? selected.annualExpensesEur,
+                                    }),
                                     selected.withdrawalRatePct,
-                                    2.2,
-                                    0,
+                                    selected.inflationPct,
+                                    selected.postRetirementWorkIncomeEur,
                                   )[idx],
                                 };
                                 selectedComputed.allScenarios.forEach((scenario) => {

@@ -300,15 +300,25 @@ async def test_snapshot_splits_negative_portfolio_lines_into_liabilities(client:
 async def test_list_fire_scenarios(client: AsyncClient):
     resp = await client.get("/api/wealth/fire-scenarios")
     assert resp.status_code == 200
-    assert len(resp.json()) >= 1
+    body = resp.json()
+    assert len(body) >= 1
+    first = body[0]
+    assert "use_custom_retirement_expense" in first
+    assert "retirement_annual_expense_eur" in first
 
 
 @pytest.mark.anyio
 async def test_update_fire_scenario(client: AsyncClient):
-    patch = {"withdrawal_rate_pct": 4.0}
+    patch = {
+        "withdrawal_rate_pct": 4.0,
+        "use_custom_retirement_expense": True,
+        "retirement_annual_expense_eur": 58000,
+    }
     resp = await client.patch("/api/wealth/fire-scenarios/fs-1", json=patch)
     assert resp.status_code == 200
     assert resp.json()["withdrawal_rate_pct"] == 4.0
+    assert resp.json()["use_custom_retirement_expense"] is True
+    assert resp.json()["retirement_annual_expense_eur"] == pytest.approx(58000)
 
 
 @pytest.mark.anyio

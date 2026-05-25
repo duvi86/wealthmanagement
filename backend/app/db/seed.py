@@ -175,6 +175,7 @@ def _seed_wealth(db: Session) -> None:
         annual_expenses_eur=70000, return_pct=6.0, tax_rate_pct=24.0,
         inflation_pct=2.2, withdrawal_rate_pct=3.8, profile_scope="both",
         target_retirement_age=52, post_retirement_work_income_eur=12000,
+        use_custom_retirement_expense=False, retirement_annual_expense_eur=70000,
         capital_strategy="protect", starting_portfolio_eur=283500, on_trajectory=True,
     )
     db.add(fire)

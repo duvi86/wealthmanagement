@@ -194,6 +194,8 @@ class FireScenarioBase(BaseModel):
     profile_scope: ProfileScope = "both"
     target_retirement_age: int
     post_retirement_work_income_eur: float = 0.0
+    use_custom_retirement_expense: bool = False
+    retirement_annual_expense_eur: float = 0.0
     capital_strategy: CapitalStrategy = "protect"
     starting_portfolio_eur: float
     on_trajectory: bool = True
@@ -224,6 +226,8 @@ class FireScenarioUpdate(BaseModel):
     profile_scope: Optional[ProfileScope] = None
     target_retirement_age: Optional[int] = None
     post_retirement_work_income_eur: Optional[float] = None
+    use_custom_retirement_expense: Optional[bool] = None
+    retirement_annual_expense_eur: Optional[float] = None
     capital_strategy: Optional[CapitalStrategy] = None
     starting_portfolio_eur: Optional[float] = None
     on_trajectory: Optional[bool] = None
