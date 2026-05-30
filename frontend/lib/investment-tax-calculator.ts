@@ -339,9 +339,9 @@ function calculateIreland(input: TaxInputs): TaxCalculationResult {
   return finalizeResult(input, base, {
     capitalGainsExemption: totalExemption,
     taxableCapitalGains,
-    capitalGainsTax: taxableCapitalGains * 0.33,
-    dividendTax: base.shareDividends * 0.54,
-    bondTax: base.bondRevenue * 0.54,
+    capitalGainsTax: taxableCapitalGains * 0.41,
+    dividendTax: base.shareDividends * 0.52,
+    bondTax: base.bondRevenue * 0.52,
     wealthTax: 0,
   });
 }

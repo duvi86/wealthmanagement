@@ -340,9 +340,9 @@ def _calculate_ireland(data: TaxInputs) -> dict:
         {
             "capital_gains_exemption": total_exemption,
             "taxable_capital_gains": taxable_capital_gains,
-            "capital_gains_tax": taxable_capital_gains * 0.33,
-            "dividend_tax": base.share_dividends * 0.54,
-            "bond_tax": base.bond_revenue * 0.54,
+            "capital_gains_tax": taxable_capital_gains * 0.41,
+            "dividend_tax": base.share_dividends * 0.52,
+            "bond_tax": base.bond_revenue * 0.52,
             "wealth_tax": 0,
         },
     )
