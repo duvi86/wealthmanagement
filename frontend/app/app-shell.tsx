@@ -70,10 +70,10 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* ── Top bar ───────────────────────────────────────────── */}
       <header className="top-bar">
         {/* Brand: logo + app name */}
-        <Link href="/" className="top-bar-brand" aria-label="WealthManagement home">
+        <Link href="/" className="top-bar-brand" aria-label="MD Wealth Management home">
           <Image
             src="/gsk-logo.svg"
-            alt="WealthAI"
+            alt="MD Wealth Management"
             width={220}
             height={48}
             priority
@@ -237,7 +237,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* ── Footer ────────────────────────────────────────────── */}
       <footer className="app-footer">
         <p className="app-footer-text">
-          Duvinage Inc. © 2026 • MD Wealth Management
+          Duvinage Inc. © {currentYear} • MD Wealth Management
         </p>
       </footer>
     </div>

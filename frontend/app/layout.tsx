@@ -4,8 +4,8 @@ import { Providers } from "./providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "WealthManagement Template",
-  description: "Phase 4 frontend architecture with React Query",
+  title: "MD Wealth Management",
+  description: "Household wealth dashboard for accounts, FIRE planning, tax scenarios, and investment decisions.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
