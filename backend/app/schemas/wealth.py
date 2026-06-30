@@ -240,6 +240,70 @@ class FireScenarioOut(FireScenarioBase):
     model_config = {"from_attributes": True}
 
 
+class FireProjectionInput(BaseModel):
+    annual_income_eur: float
+    annual_expenses_eur: float
+    use_custom_retirement_expense: bool = False
+    retirement_annual_expense_eur: float = 0.0
+    return_pct: float
+    tax_rate_pct: float
+    inflation_pct: float
+    withdrawal_rate_pct: float
+    profile_scope: ProfileScope = "both"
+    target_retirement_age: int
+    post_retirement_work_income_eur: float = 0.0
+    capital_strategy: CapitalStrategy = "protect"
+    starting_portfolio_eur: float
+    current_age: float = 40.0
+    expected_lifetime: int = 90
+
+
+class FireProjectionSeriesPoint(BaseModel):
+    period: str
+    portfolio_eur: int
+
+
+class FireProjectionMonteCarloPoint(BaseModel):
+    period: str
+    monte_carlo_eur: int
+
+
+class FireProjectionScenarioSeries(BaseModel):
+    adjustment: float
+    label: str
+    series: list[FireProjectionSeriesPoint]
+
+
+class FireProjectionSensitivityPoint(BaseModel):
+    bucket: str
+    years: float
+
+
+class FireProjectionOut(BaseModel):
+    years_to_fire: float
+    success_rate: float
+    fire_year: float
+    projected: int
+    portfolio_at_target_age: int
+    fire_target_eur: int
+    alt_years_to_fire: float
+    alt_fire_year: float
+    alt_retirement_year_gap: float
+    after_tax_return: float
+    series: list[FireProjectionSeriesPoint]
+    monte_carlo_series: list[FireProjectionMonteCarloPoint]
+    all_scenarios: list[FireProjectionScenarioSeries]
+    sensitivity: list[FireProjectionSensitivityPoint]
+    retirement_years_estimate: int
+    annual_expense_gap_in_retirement: float
+    adjusted_withdrawal_rate: float
+    profile_current_age: float
+    profile_expected_lifetime: float
+    target_retirement_year: int
+    retirement_year_gap: float
+    retirement_amount_gap: int
+
+
 # ── Decision ───────────────────────────────────────────────────────────────────
 
 class DecisionBase(BaseModel):

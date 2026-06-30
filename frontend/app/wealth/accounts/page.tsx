@@ -910,6 +910,14 @@ function getAccountSeriesKey(account: Account) {
   ].join("|");
 }
 
+function getAccountSeriesKeyLoose(account: Account) {
+  return [
+    normalizeSeriesKeyPart(account.accountName),
+    normalizeSeriesKeyPart(account.institution),
+    normalizeSeriesKeyPart(account.type),
+  ].join("|");
+}
+
 function toBadgeTone(type: AccountType): "default" | "info" | "success" | "warning" | "error" {
   if (type === "Loan") return "error";
   if (type === "Property") return "info";
@@ -1323,8 +1331,9 @@ export default function WealthAccountsPage() {
     void syncFxRatesForAllAccounts();
   }, [sourceAccounts, updateAccount]);
 
-  const historyBySeriesKey = useMemo(() => {
-    const grouped = new Map<string, Array<{ period: string; balanceEur: number }>>();
+  const historyBySeries = useMemo(() => {
+    const strictGrouped = new Map<string, Array<{ period: string; balanceEur: number }>>();
+    const looseGrouped = new Map<string, Array<{ period: string; balanceEur: number }>>();
 
     const getSnapshotBalanceEur = (account: Account, monthKey: string) => {
       if (account.type === "Loan") {
@@ -1335,29 +1344,57 @@ export default function WealthAccountsPage() {
     };
 
     for (const account of sourceAccounts) {
-      const key = getAccountSeriesKey(account);
       const period = account.updatedAt;
       const monthKey = period.slice(0, 7);
-      const points = grouped.get(key) ?? [];
-      points.push({ period, balanceEur: getSnapshotBalanceEur(account, monthKey) });
-      grouped.set(key, points);
+      const balanceEur = getSnapshotBalanceEur(account, monthKey);
+
+      const strictKey = getAccountSeriesKey(account);
+      const strictPoints = strictGrouped.get(strictKey) ?? [];
+      strictPoints.push({ period, balanceEur });
+      strictGrouped.set(strictKey, strictPoints);
+
+      const looseKey = getAccountSeriesKeyLoose(account);
+      const loosePoints = looseGrouped.get(looseKey) ?? [];
+      loosePoints.push({ period, balanceEur });
+      looseGrouped.set(looseKey, loosePoints);
     }
 
-    for (const [key, points] of grouped.entries()) {
-      const dedupedByPeriod = new Map<string, { period: string; balanceEur: number }>();
-      for (const point of points.sort((a, b) => a.period.localeCompare(b.period))) {
-        dedupedByPeriod.set(point.period, point);
+    const dedupeByPeriod = (grouped: Map<string, Array<{ period: string; balanceEur: number }>>) => {
+      for (const [key, points] of grouped.entries()) {
+        const dedupedByPeriod = new Map<string, { period: string; balanceEur: number }>();
+        for (const point of points.sort((a, b) => a.period.localeCompare(b.period))) {
+          dedupedByPeriod.set(point.period, point);
+        }
+        grouped.set(key, Array.from(dedupedByPeriod.values()).sort((a, b) => a.period.localeCompare(b.period)));
       }
-      grouped.set(key, Array.from(dedupedByPeriod.values()).sort((a, b) => a.period.localeCompare(b.period)));
-    }
+    };
 
-    return grouped;
+    dedupeByPeriod(strictGrouped);
+    dedupeByPeriod(looseGrouped);
+
+    return {
+      strict: strictGrouped,
+      loose: looseGrouped,
+    };
   }, [sourceAccounts]);
 
   const selectedAccountHistory = useMemo(() => {
     if (!selectedAccount) return [];
-    const key = getAccountSeriesKey(selectedAccount);
-    const linkedHistory = historyBySeriesKey.get(key) ?? [];
+    const strictKey = getAccountSeriesKey(selectedAccount);
+    const looseKey = getAccountSeriesKeyLoose(selectedAccount);
+    const strictHistory = historyBySeries.strict.get(strictKey) ?? [];
+    const looseHistory = historyBySeries.loose.get(looseKey) ?? [];
+
+    // Prefer the strict key, but include the loose key to preserve continuity across ownership metadata changes.
+    const linkedByPeriod = new Map<string, { period: string; balanceEur: number }>();
+    for (const point of looseHistory) {
+      linkedByPeriod.set(point.period, point);
+    }
+    for (const point of strictHistory) {
+      linkedByPeriod.set(point.period, point);
+    }
+
+    const linkedHistory = Array.from(linkedByPeriod.values()).sort((a, b) => a.period.localeCompare(b.period));
     const fallbackHistory = (accountHistoryById[selectedAccount.id] ?? []).map((point) => ({
       period: point.month,
       balanceEur: point.balanceEur,
@@ -1369,7 +1406,7 @@ export default function WealthAccountsPage() {
     }
 
     return Array.from(merged.values()).sort((a, b) => a.period.localeCompare(b.period));
-  }, [historyBySeriesKey, selectedAccount]);
+  }, [historyBySeries, selectedAccount]);
 
   function setMortgage(partial: Partial<MortgageFormState>) {
     setFormState((prev) => ({ ...prev, mortgage: { ...prev.mortgage, ...partial } }));
@@ -1474,7 +1511,7 @@ export default function WealthAccountsPage() {
     }
   }
 
-  function handleFormSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function handleFormSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const isMultipleOwners = formState.ownerId === "__multiple__";
 
@@ -1510,7 +1547,7 @@ export default function WealthAccountsPage() {
     const primaryOwner = ownershipSplit[0];
     const coOwner = ownershipSplit[1];
 
-    const portfolioLines =
+    let portfolioLines =
       supportsPortfolioLines(formState.type)
         ? formState.portfolioLines.map((line) => ({
             id: line.id,
@@ -1524,6 +1561,31 @@ export default function WealthAccountsPage() {
             expectedReturnPct: Number(line.expectedReturnPct || 0),
           }))
         : undefined;
+
+    if (formState.type === "Property" && portfolioLines && portfolioLines.length > 0) {
+      const targetTotalEur = Number(formState.nativeBalance) * Number(formState.fxToEur);
+      const currentTotalEur = portfolioLines.reduce(
+        (sum, line) => sum + Number(line.nativeAmount || 0) * Number(line.fxToEur || 0),
+        0,
+      );
+
+      // Keep hidden property lines aligned with the edited property value.
+      if (Number.isFinite(targetTotalEur) && targetTotalEur >= 0) {
+        if (currentTotalEur > 0) {
+          const scale = targetTotalEur / currentTotalEur;
+          portfolioLines = portfolioLines.map((line) => ({
+            ...line,
+            nativeAmount: Number((line.nativeAmount * scale).toFixed(2)),
+          }));
+        } else if (portfolioLines.length === 1) {
+          const fx = Number(portfolioLines[0].fxToEur || 1) || 1;
+          portfolioLines = [{
+            ...portfolioLines[0],
+            nativeAmount: Number((targetTotalEur / fx).toFixed(2)),
+          }];
+        }
+      }
+    }
 
     const mortgagePayload: MortgageDetails | undefined =
       (formState.type === "Loan" || (formState.type === "Property" && formState.mortgage.hasMortgage)) &&
@@ -1568,13 +1630,21 @@ export default function WealthAccountsPage() {
       updatedAt: formState.updatedAt,
     };
 
-    if (editingAccountId) {
-      updateAccount.mutate({ ...(payload as any), id: editingAccountId });
-    } else {
-      createAccount.mutate(payload);
-    }
+    try {
+      if (editingAccountId) {
+        await updateAccount.mutateAsync({ ...(payload as any), id: editingAccountId });
+        addToast("Account updated.", "success");
+      } else {
+        await createAccount.mutateAsync(payload);
+        addToast("Account created.", "success");
+      }
 
-    setIsFormOpen(false);
+      await refetchAccounts();
+      setIsFormOpen(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Save failed. Please try again.";
+      addToast(message, "error");
+    }
   }
 
   function handleUpdateSubmit(e: React.FormEvent<HTMLFormElement>) {

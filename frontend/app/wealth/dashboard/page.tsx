@@ -9,6 +9,7 @@ import { PageFrame, PageHeader } from "@/components/ui/page-frame";
 import { StatusPill } from "@/components/ui/status-pill";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import { TemporalFilter } from "@/components/ui/temporal-filter";
+import { ToggleSwitch } from "@/components/ui/toggle-switch";
 import {
   byAllocationBucket,
   computeTotals,
@@ -88,6 +89,7 @@ export default function WealthDashboardPage() {
   const [trendResolution, setTrendResolution] = useState<TrendResolution>("monthly");
   const [customStartDate, setCustomStartDate] = useState("");
   const [customEndDate, setCustomEndDate] = useState("");
+  const [includePropertyInJointExposure, setIncludePropertyInJointExposure] = useState(true);
 
   const latestInventoryDate = useMemo(() => {
     const latest = accounts.reduce<{ key: string; ts: number } | null>((currentLatest, account) => {
@@ -171,6 +173,10 @@ export default function WealthDashboardPage() {
 
     latestDateAccounts.forEach((account) => {
       if (account.type === "Loan") {
+        return;
+      }
+
+      if (!includePropertyInJointExposure && account.type === "Property") {
         return;
       }
 
@@ -281,7 +287,7 @@ export default function WealthDashboardPage() {
       thresholdSuccess,
       thresholdWarning,
     };
-  }, [latestDateAccounts]);
+  }, [includePropertyInJointExposure, latestDateAccounts]);
   const liabilityData = useMemo(() => {
     const byCategory = new Map<string, number>();
 
@@ -333,6 +339,7 @@ export default function WealthDashboardPage() {
   const ownerWealthByType = useMemo(() => {
     const ownerTypeMap = new Map<string, Map<string, number>>();
     const ownerTotals = new Map<string, number>();
+    const ownerLabels = new Map<string, string>();
     const typeSet = new Set<string>();
 
     latestDateAccounts.forEach((account) => {
@@ -343,34 +350,64 @@ export default function WealthDashboardPage() {
       const splits =
         account.ownershipSplit?.filter((entry) => Number(entry.sharePct) > 0) ?? [];
       const primaryOwner = (account.ownerName || "Unknown").trim() || "Unknown";
+      const primaryOwnerId = (account.ownerId || "").trim();
       const coOwner = (account.coOwnerName || "").trim();
+      const coOwnerId = (account.coOwnerId || "").trim();
+
+      const normalizedSplits = (() => {
+        if (splits.length === 0) {
+          return [] as Array<{ ownerId?: string; ownerName: string; sharePct: number }>;
+        }
+
+        const hasCoOwnerInSplit = splits.some((entry) => {
+          const entryOwnerId = String(entry.ownerId || "").trim();
+          const entryOwnerName = (entry.ownerName || "").trim();
+          if (coOwnerId && entryOwnerId === coOwnerId) {
+            return true;
+          }
+          return Boolean(coOwner) && entryOwnerName === coOwner;
+        });
+
+        // Legacy compatibility: some co-owned accounts only persisted the primary owner in ownershipSplit.
+        // In that case, fallback to 50/50 so owner exposure matches the displayed account ownership semantics.
+        if (coOwner && coOwner !== primaryOwner && !hasCoOwnerInSplit) {
+          return [
+            { ownerId: primaryOwnerId || undefined, ownerName: primaryOwner, sharePct: 50 },
+            { ownerId: coOwnerId || undefined, ownerName: coOwner, sharePct: 50 },
+          ];
+        }
+
+        const totalSplit = splits.reduce((sum, entry) => sum + Number(entry.sharePct), 0);
+        return splits.map((entry) => ({
+          ownerId: entry.ownerId,
+          ownerName: (entry.ownerName || primaryOwner).trim() || "Unknown",
+          sharePct: totalSplit > 0 ? (Number(entry.sharePct) / totalSplit) * 100 : 0,
+        }));
+      })();
 
       const ownership =
-        splits.length > 0
-          ? (() => {
-              const totalSplit = splits.reduce((sum, entry) => sum + Number(entry.sharePct), 0);
-              return splits.map((entry) => ({
-                ownerName: (entry.ownerName || primaryOwner).trim() || "Unknown",
-                // Normalize split shares so legacy/non-100 data still allocates 100% of the account value.
-                sharePct: totalSplit > 0 ? (Number(entry.sharePct) / totalSplit) * 100 : 0,
-              }));
-            })()
+        normalizedSplits.length > 0
+          ? normalizedSplits
           : coOwner && coOwner !== primaryOwner
             ? [
-                { ownerName: primaryOwner, sharePct: 50 },
-                { ownerName: coOwner, sharePct: 50 },
+                { ownerId: primaryOwnerId || undefined, ownerName: primaryOwner, sharePct: 50 },
+                { ownerId: coOwnerId || undefined, ownerName: coOwner, sharePct: 50 },
               ]
-            : [{ ownerName: primaryOwner, sharePct: 100 }];
+            : [{ ownerId: primaryOwnerId || undefined, ownerName: primaryOwner, sharePct: 100 }];
 
       ownership.forEach((entry) => {
-        const owner = (entry.ownerName || "Unknown").trim() || "Unknown";
+        const ownerLabel = (entry.ownerName || "Unknown").trim() || "Unknown";
+        const ownerKey = (entry.ownerId || "").trim() || ownerLabel;
         const ownerAmount = amountEur * (entry.sharePct / 100);
 
-        const byType = ownerTypeMap.get(owner) ?? new Map<string, number>();
+        const byType = ownerTypeMap.get(ownerKey) ?? new Map<string, number>();
         byType.set(accountType, (byType.get(accountType) ?? 0) + ownerAmount);
-        ownerTypeMap.set(owner, byType);
+        ownerTypeMap.set(ownerKey, byType);
 
-        ownerTotals.set(owner, (ownerTotals.get(owner) ?? 0) + ownerAmount);
+        ownerTotals.set(ownerKey, (ownerTotals.get(ownerKey) ?? 0) + ownerAmount);
+        if (!ownerLabels.has(ownerKey) || ownerLabels.get(ownerKey) === "Unknown") {
+          ownerLabels.set(ownerKey, ownerLabel);
+        }
       });
     });
 
@@ -395,11 +432,11 @@ export default function WealthDashboardPage() {
     const totalWealthEur = Number(totals.netWorth);
 
     const data = Array.from(ownerTypeMap.entries())
-      .map(([owner, byType]) => {
-        const total = ownerTotals.get(owner) ?? 0;
+      .map(([ownerKey, byType]) => {
+        const total = ownerTotals.get(ownerKey) ?? 0;
         const totalAbs = Math.abs(total);
         const row: Record<string, string | number> = {
-          owner,
+          owner: ownerLabels.get(ownerKey) ?? ownerKey,
           ownerTotalEur: Math.round(total),
           ownerTotalAbsEur: totalAbs,
           absTotal: totalAbs,
@@ -543,15 +580,26 @@ export default function WealthDashboardPage() {
             <SurfaceCard>
               <div className="card-header">
                 <h3 style={{ margin: 0 }}>Joint Exposure: Asset x Market x Currency</h3>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 12, color: "var(--color-text-subtle)" }}>Property</span>
+                  <ToggleSwitch
+                    checked={includePropertyInJointExposure}
+                    onChange={setIncludePropertyInJointExposure}
+                    label="Include property in joint exposure"
+                    onText="On"
+                    offText="Off"
+                    title={includePropertyInJointExposure ? "Exclude Property from matrix" : "Include Property in matrix"}
+                  />
+                </div>
               </div>
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, gap: 12 }}>
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, gap: 6 }}>
                 <div
                   style={{
                     display: "flex",
                     flexWrap: "wrap",
-                    gap: 12,
+                    gap: 8,
                     alignItems: "center",
-                    fontSize: 12,
+                    fontSize: 10,
                     color: "var(--color-text-subtle)",
                   }}
                 >
@@ -569,8 +617,8 @@ export default function WealthDashboardPage() {
                 <div
                   style={{
                     border: "1px solid var(--color-stroke-primary)",
-                    borderRadius: 10,
-                    padding: 10,
+                    borderRadius: 7,
+                    padding: 6,
                     background:
                       "linear-gradient(180deg, color-mix(in srgb, var(--color-surface-secondary) 45%, transparent), var(--color-surface-primary))",
                   }}
@@ -581,10 +629,10 @@ export default function WealthDashboardPage() {
                     </p>
                   ) : (
                     <>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16, marginTop: 32, fontSize: 11 }}>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 6, marginTop: 2, fontSize: 9 }}>
                         <span
                           style={{
-                            padding: "3px 8px",
+                            padding: "1px 6px",
                             borderRadius: 999,
                             background: "var(--color-surface-success-primary)",
                             color: "var(--color-text-success-on-primary)",
@@ -595,7 +643,7 @@ export default function WealthDashboardPage() {
                         </span>
                         <span
                           style={{
-                            padding: "3px 8px",
+                            padding: "1px 6px",
                             borderRadius: 999,
                             background: "var(--color-surface-warning-primary)",
                             color: "var(--color-text-warning-on-primary)",
@@ -606,7 +654,7 @@ export default function WealthDashboardPage() {
                         </span>
                         <span
                           style={{
-                            padding: "3px 8px",
+                            padding: "1px 6px",
                             borderRadius: 999,
                             background: "var(--color-surface-error-primary)",
                             color: "var(--color-text-error-on-primary)",
@@ -619,17 +667,17 @@ export default function WealthDashboardPage() {
                       <div
                         style={{
                           display: "grid",
-                          gridTemplateColumns: `minmax(130px, 1.35fr) repeat(${jointExposure.columns.length}, minmax(0, 1fr))`,
-                          gap: 6,
+                          gridTemplateColumns: `minmax(104px, 1.15fr) repeat(${jointExposure.columns.length}, minmax(0, 1fr))`,
+                          gap: 3,
                           alignItems: "stretch",
                         }}
                       >
                         <div
                           style={{
-                            padding: "6px 8px",
-                            borderRadius: 8,
+                            padding: "4px 6px",
+                            borderRadius: 6,
                             background: "var(--color-surface-secondary)",
-                            fontSize: 11,
+                            fontSize: 9,
                             fontFamily: "var(--font-semibold)",
                           }}
                         >
@@ -639,10 +687,10 @@ export default function WealthDashboardPage() {
                           <div
                             key={column}
                             style={{
-                              padding: "6px 4px",
-                              borderRadius: 8,
+                              padding: "4px 2px",
+                              borderRadius: 6,
                               background: "var(--color-surface-secondary)",
-                              fontSize: 10,
+                              fontSize: 8,
                               textAlign: "center",
                               lineHeight: 1.2,
                             }}
@@ -655,20 +703,20 @@ export default function WealthDashboardPage() {
                           <Fragment key={row.assetClass}>
                             <div
                               style={{
-                                padding: "8px",
-                                borderRadius: 8,
+                                padding: "4px 5px",
+                                borderRadius: 6,
                                 border: "1px solid var(--color-stroke-primary)",
-                                fontSize: 12,
+                                fontSize: 10,
                                 background: "var(--color-surface-primary)",
                                 display: "flex",
                                 flexDirection: "column",
                                 justifyContent: "center",
-                                gap: 2,
+                                gap: 1,
                               }}
                               title={`${formatMoney(row.rowTotalEur, "EUR")} (${row.rowPct.toFixed(1)}% of tracked exposure)`}
                             >
                               <span style={{ fontFamily: "var(--font-semibold)" }}>{row.assetClass}</span>
-                              <span style={{ color: "var(--color-text-subtle)", fontSize: 10 }}>{row.rowPct.toFixed(1)}%</span>
+                              <span style={{ color: "var(--color-text-subtle)", fontSize: 8 }}>{row.rowPct.toFixed(1)}%</span>
                             </div>
 
                             {row.cells.map((cell) => {
@@ -696,17 +744,17 @@ export default function WealthDashboardPage() {
                                 <div
                                   key={`${row.assetClass}-${cell.column}`}
                                   style={{
-                                    borderRadius: 8,
+                                    borderRadius: 6,
                                     border: `1px solid ${severity.border}`,
                                     background: severity.bg,
                                     color: severity.text,
-                                    fontSize: 11,
+                                    fontSize: 9,
                                     textAlign: "center",
                                     display: "flex",
                                     alignItems: "center",
                                     justifyContent: "center",
-                                    minHeight: 44,
-                                    padding: "4px 2px",
+                                    minHeight: 28,
+                                    padding: "2px 1px",
                                     lineHeight: 1.1,
                                   }}
                                   title={`${row.assetClass} / ${cell.column}\nAmount: ${formatMoney(cell.amountEur, "EUR")}\nActual: ${cell.pct.toFixed(1)}%\nExpected: ${cell.expectedPct.toFixed(1)}%\nDeviation: ${cell.deviationPct >= 0 ? "+" : ""}${cell.deviationPct.toFixed(1)}%`}
@@ -722,7 +770,23 @@ export default function WealthDashboardPage() {
                   )}
                 </div>
 
-                <div style={{ fontSize: 12, color: "var(--color-text-subtle)" }}>
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: "var(--color-text-subtle)",
+                    lineHeight: 1.25,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                  title={
+                    jointExposure.topImbalances.length > 0
+                      ? jointExposure.topImbalances
+                          .map((item) => `${item.assetClass} / ${item.column} (${item.deviationPct >= 0 ? "+" : ""}${item.deviationPct.toFixed(1)}%)`)
+                          .join("; ")
+                      : "No significant imbalance detected."
+                  }
+                >
                   <strong style={{ color: "var(--color-text-default)" }}>Top imbalances:</strong>{" "}
                   {jointExposure.topImbalances.length > 0
                     ? jointExposure.topImbalances

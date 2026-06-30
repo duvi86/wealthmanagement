@@ -15,7 +15,6 @@ import { KpiCard } from "@/components/ui/kpi-card";
 import { LineChart } from "@/components/ui/line-chart";
 import { LoadingSpinner, Skeleton } from "@/components/ui/loading";
 import { Modal } from "@/components/ui/modal";
-import { ObjectiveCard } from "@/components/ui/okr-card";
 import { PageFrame, PageHeader } from "@/components/ui/page-frame";
 import { ProgressBar, RagIndicator } from "@/components/ui/progress";
 import { Slider } from "@/components/ui/slider";
@@ -78,31 +77,6 @@ const CHART_SERIES_SWATCHES = [
   "--color-chart-series-9",
   "--color-chart-series-10",
 ];
-
-const SAMPLE_OBJECTIVE = {
-  id: 1,
-  title: "Improve portfolio delivery confidence",
-  progress: 67,
-  key_results: [
-    {
-      id: 11,
-      title: "Raise on-time delivery rate to 85%",
-      progress: 72,
-      initiatives: [
-        { id: 101, title: "Delivery review cadence", progress: 80 },
-        { id: 102, title: "Release readiness checklist", progress: 64 },
-      ],
-    },
-    {
-      id: 12,
-      title: "Reduce blocked work by 30%",
-      progress: 44,
-      initiatives: [
-        { id: 103, title: "Dependency triage board", progress: 40 },
-      ],
-    },
-  ],
-};
 
 export default function ComponentsPage() {
   const [modalOpen, setModalOpen] = useState(false);
@@ -338,11 +312,6 @@ export default function ComponentsPage() {
               onChange={(e) => setSliderValue(Number(e.target.value))}
             />
           </FormContainer>
-        </section>
-
-        <section className="catalog-section">
-          <h2 className="catalog-section-title">OKR Card Format</h2>
-          <ObjectiveCard objective={SAMPLE_OBJECTIVE} />
         </section>
 
         {/* ── Temporal Filter ────────────────────────────────── */}

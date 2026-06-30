@@ -351,18 +351,6 @@ export function computeTotals(accounts: Account[]) {
   let liabilities = 0;
 
   accounts.forEach((account) => {
-    if (account.portfolioLines?.length) {
-      account.portfolioLines.forEach((line) => {
-        const amountEur = line.nativeAmount * line.fxToEur;
-        if (amountEur < 0) {
-          liabilities += Math.abs(amountEur);
-        } else {
-          assets += amountEur;
-        }
-      });
-      return;
-    }
-
     const amountEur = toEur(account);
     if (amountEur < 0) {
       liabilities += Math.abs(amountEur);

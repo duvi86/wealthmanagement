@@ -13,6 +13,8 @@ from ...schemas.wealth import (
     DecisionCreate,
     DecisionOut,
     DecisionUpdate,
+    FireProjectionInput,
+    FireProjectionOut,
     FireScenarioCreate,
     FireScenarioOut,
     FireScenarioUpdate,
@@ -156,6 +158,29 @@ def update_fire_scenario(scenario_id: str, data: FireScenarioUpdate, db: Session
 def delete_fire_scenario(scenario_id: str, db: Session = Depends(get_db)):
     if not wealth_service.delete_fire_scenario(db, scenario_id):
         raise HTTPException(status_code=404, detail="FIRE scenario not found")
+
+
+@router.post("/fire-scenarios/projection", response_model=FireProjectionOut)
+def compute_fire_projection(data: FireProjectionInput):
+    return wealth_service.calculate_fire_projection(data)
+
+
+@router.post("/fire-scenarios/{scenario_id}/projection", response_model=FireProjectionOut)
+def compute_fire_projection_for_scenario(
+    scenario_id: str,
+    current_age: float | None = None,
+    expected_lifetime: int | None = None,
+    db: Session = Depends(get_db),
+):
+    projection = wealth_service.calculate_fire_projection_for_scenario(
+        db,
+        scenario_id,
+        current_age=current_age,
+        expected_lifetime=expected_lifetime,
+    )
+    if projection is None:
+        raise HTTPException(status_code=404, detail="FIRE scenario not found")
+    return projection
 
 
 # ── Decisions ──────────────────────────────────────────────────────────────────

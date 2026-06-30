@@ -33,6 +33,7 @@ from ..schemas.wealth import (
     DecisionCreate,
     DecisionUpdate,
     FireScenarioCreate,
+    FireProjectionInput,
     FireScenarioUpdate,
     PersonProfileCreate,
     PersonProfileUpdate,
@@ -1238,3 +1239,472 @@ def get_tax_calculator_config() -> dict:
 
 def compute_tax_calculator(data: TaxCalculatorInput) -> dict:
     return calculate_tax_bundle(data)
+
+
+def _get_retirement_annual_expense(
+    annual_expenses_eur: float,
+    use_custom_retirement_expense: bool,
+    retirement_annual_expense_eur: float,
+) -> float:
+    fallback = max(0.0, annual_expenses_eur)
+    if not use_custom_retirement_expense:
+        return fallback
+    return max(0.0, retirement_annual_expense_eur)
+
+
+def _build_capital_trajectory(
+    start_year: int,
+    retirement_year: int,
+    end_year: int,
+    starting_portfolio_eur: float,
+    annual_savings_eur: float,
+    after_tax_return_pct: float,
+    annual_expenses_eur: float,
+    post_retirement_work_income_eur: float,
+    inflation_pct: float,
+) -> list[dict[str, int | str]]:
+    data: list[dict[str, int | str]] = []
+    portfolio = starting_portfolio_eur
+
+    for year in range(start_year, end_year + 1):
+        if year > start_year:
+            growth = portfolio * (after_tax_return_pct / 100)
+            current_expense_gap = 0.0
+
+            if year > retirement_year:
+                years_from_start = year - start_year
+                inflation_factor = (1 + inflation_pct / 100) ** years_from_start
+                indexed_expenses = annual_expenses_eur * inflation_factor
+                indexed_income = post_retirement_work_income_eur * inflation_factor
+                current_expense_gap = max(0.0, indexed_expenses - indexed_income)
+
+            cash_flow = annual_savings_eur if year <= retirement_year else -current_expense_gap
+            portfolio += growth + cash_flow
+
+        data.append({
+            "period": str(year),
+            "portfolio_eur": round(max(0.0, portfolio)),
+        })
+
+    return data
+
+
+def _find_fire_milestone_from_trajectory(
+    trajectory: list[dict[str, int | str]],
+    start_year: int,
+    annual_expenses_eur: float,
+    post_retirement_work_income_eur: float,
+    inflation_pct: float,
+    withdrawal_rate_pct: float,
+    capital_strategy: str,
+    after_tax_return_pct: float,
+    current_age: float,
+    expected_lifetime: float,
+) -> dict[str, float | int | bool]:
+    safe_withdrawal_rate = max(0.1, withdrawal_rate_pct) / 100
+    previous: dict[str, float] | None = None
+
+    for point in trajectory:
+        year = int(point["period"])
+        years_from_start = max(0, year - start_year)
+        inflation_factor = (1 + inflation_pct / 100) ** years_from_start
+        annual_need = max(0.0, annual_expenses_eur * inflation_factor - post_retirement_work_income_eur * inflation_factor)
+        required_portfolio = annual_need / safe_withdrawal_rate
+
+        if capital_strategy == "deplete":
+            years_remaining = max(1.0, expected_lifetime - (current_age + years_from_start))
+            r = after_tax_return_pct / 100
+            if abs(r) < 1e-9:
+                required_portfolio = annual_need * years_remaining
+            else:
+                required_portfolio = annual_need * ((1 - (1 + r) ** -years_remaining) / r)
+
+        portfolio_eur = float(point["portfolio_eur"])
+        surplus = portfolio_eur - required_portfolio
+
+        if surplus >= 0:
+            if previous and previous["surplus"] < 0:
+                denominator = previous["surplus"] - surplus
+                frac = previous["surplus"] / denominator if denominator != 0 else 1.0
+                frac = min(1.0, max(0.0, frac))
+                years_to_fire = max(0.0, (previous["year"] - start_year) + frac * (year - previous["year"]))
+                portfolio_at_fire = round(previous["portfolio"] + frac * (portfolio_eur - previous["portfolio"]))
+                return {
+                    "reached": True,
+                    "year": year,
+                    "years_to_fire": years_to_fire,
+                    "portfolio_at_fire": portfolio_at_fire,
+                }
+
+            return {
+                "reached": True,
+                "year": year,
+                "years_to_fire": float(max(0, year - start_year)),
+                "portfolio_at_fire": round(portfolio_eur),
+            }
+
+        previous = {
+            "year": float(year),
+            "portfolio": portfolio_eur,
+            "surplus": surplus,
+        }
+
+    last = trajectory[-1] if trajectory else {"period": str(start_year), "portfolio_eur": 0}
+    fallback_year = int(last["period"])
+    return {
+        "reached": False,
+        "year": fallback_year,
+        "years_to_fire": -1.0,
+        "portfolio_at_fire": round(float(last["portfolio_eur"])),
+    }
+
+
+def _simulate_success_rate(
+    payload: FireProjectionInput,
+    target_retirement_year: int,
+) -> float:
+    years_to_target_age = max(0, target_retirement_year - 2026)
+    retirement_years_estimate = max(1, round(payload.expected_lifetime - payload.target_retirement_age))
+    simulation_end_year = target_retirement_year + retirement_years_estimate
+    annual_savings = max(0.0, payload.annual_income_eur - payload.annual_expenses_eur)
+    retirement_annual_expense_eur = _get_retirement_annual_expense(
+        payload.annual_expenses_eur,
+        payload.use_custom_retirement_expense,
+        payload.retirement_annual_expense_eur,
+    )
+    scenario_adjustments = [-3.0, -2.0, -1.5, -1.0, -0.5, 0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0]
+    safe_withdrawal_rate = max(0.1, payload.withdrawal_rate_pct) / 100
+
+    success_count = 0
+    for adjustment in scenario_adjustments:
+        scenario_after_tax_return = max(-0.95, (payload.return_pct + adjustment) * (1 - payload.tax_rate_pct / 100))
+        series = _build_capital_trajectory(
+            2026,
+            target_retirement_year,
+            simulation_end_year,
+            payload.starting_portfolio_eur,
+            annual_savings,
+            scenario_after_tax_return,
+            retirement_annual_expense_eur,
+            payload.post_retirement_work_income_eur,
+            payload.inflation_pct,
+        )
+
+        target_year_idx = min(len(series) - 1, years_to_target_age)
+        target_year_portfolio = float(series[target_year_idx]["portfolio_eur"]) if series else 0.0
+        target_inflation_factor = (1 + payload.inflation_pct / 100) ** years_to_target_age
+        target_year_gap = max(
+            0.0,
+            retirement_annual_expense_eur * target_inflation_factor
+            - payload.post_retirement_work_income_eur * target_inflation_factor,
+        )
+        required_portfolio = target_year_gap / safe_withdrawal_rate
+        final_value = float(series[-1]["portfolio_eur"]) if series else 0.0
+
+        if payload.capital_strategy == "protect":
+            can_sustain = True
+            for i in range(target_year_idx, len(series)):
+                year = 2026 + i
+                if year > target_retirement_year:
+                    years_from_start = year - 2026
+                    inflation_factor = (1 + payload.inflation_pct / 100) ** years_from_start
+                    current_expense_gap = max(
+                        0.0,
+                        retirement_annual_expense_eur * inflation_factor
+                        - payload.post_retirement_work_income_eur * inflation_factor,
+                    )
+                    current_required = current_expense_gap / safe_withdrawal_rate
+                    if float(series[i]["portfolio_eur"]) < current_required:
+                        can_sustain = False
+                        break
+            is_success = can_sustain and final_value > 0
+        else:
+            is_success = target_year_portfolio > 0 and final_value > 0
+
+        if is_success:
+            success_count += 1
+
+    return (success_count / len(scenario_adjustments)) * 100
+
+
+def calculate_fire_projection(payload: FireProjectionInput) -> dict[str, Any]:
+    base_year = 2026
+    max_projection_years = 80
+    max_projection_year = base_year + max_projection_years
+
+    annual_savings = max(0.0, payload.annual_income_eur - payload.annual_expenses_eur)
+    retirement_annual_expense_eur = _get_retirement_annual_expense(
+        payload.annual_expenses_eur,
+        payload.use_custom_retirement_expense,
+        payload.retirement_annual_expense_eur,
+    )
+    years_to_target_age_exact = max(0.0, payload.target_retirement_age - payload.current_age)
+    target_retirement_year = base_year + round(years_to_target_age_exact)
+    years_to_target_retirement_year = max(0, target_retirement_year - base_year)
+    inflation_to_target = (1 + payload.inflation_pct / 100) ** years_to_target_retirement_year
+    annual_expense_gap_in_retirement = max(
+        0.0,
+        retirement_annual_expense_eur * inflation_to_target
+        - payload.post_retirement_work_income_eur * inflation_to_target,
+    )
+    retirement_years_estimate = max(10, int(payload.expected_lifetime - payload.target_retirement_age))
+    adjusted_withdrawal_rate = payload.withdrawal_rate_pct
+    after_tax_return = max(-0.95, payload.return_pct * (1 - payload.tax_rate_pct / 100))
+
+    full_trajectory = _build_capital_trajectory(
+        base_year,
+        target_retirement_year,
+        max_projection_year,
+        payload.starting_portfolio_eur,
+        annual_savings,
+        after_tax_return,
+        retirement_annual_expense_eur,
+        payload.post_retirement_work_income_eur,
+        payload.inflation_pct,
+    )
+
+    years_to_fire_sim = _find_fire_milestone_from_trajectory(
+        full_trajectory,
+        base_year,
+        retirement_annual_expense_eur,
+        payload.post_retirement_work_income_eur,
+        payload.inflation_pct,
+        adjusted_withdrawal_rate,
+        payload.capital_strategy,
+        after_tax_return,
+        payload.current_age,
+        float(payload.expected_lifetime),
+    )
+
+    years_to_fire = float(years_to_fire_sim["years_to_fire"])
+    reached = bool(years_to_fire_sim["reached"])
+    fire_year = float(years_to_fire_sim["year"]) if reached else -1.0
+    projected = int(years_to_fire_sim["portfolio_at_fire"])
+
+    alt_years_to_fire_sim: dict[str, Any] | None = None
+    if not reached:
+        alt_trajectory = _build_capital_trajectory(
+            base_year,
+            max_projection_year,
+            max_projection_year,
+            payload.starting_portfolio_eur,
+            annual_savings,
+            after_tax_return,
+            retirement_annual_expense_eur,
+            payload.post_retirement_work_income_eur,
+            payload.inflation_pct,
+        )
+        alt_years_to_fire_sim = _find_fire_milestone_from_trajectory(
+            alt_trajectory,
+            base_year,
+            retirement_annual_expense_eur,
+            payload.post_retirement_work_income_eur,
+            payload.inflation_pct,
+            adjusted_withdrawal_rate,
+            payload.capital_strategy,
+            after_tax_return,
+            payload.current_age,
+            float(payload.expected_lifetime),
+        )
+
+    portfolio_at_target_age = int(next(
+        (p["portfolio_eur"] for p in full_trajectory if int(p["period"]) == target_retirement_year),
+        full_trajectory[-1]["portfolio_eur"] if full_trajectory else 0,
+    ))
+    target_annual_need_at_target_age = max(
+        0.0,
+        retirement_annual_expense_eur * inflation_to_target
+        - payload.post_retirement_work_income_eur * inflation_to_target,
+    )
+    required_portfolio_at_target_age = round(target_annual_need_at_target_age / max(0.001, adjusted_withdrawal_rate / 100))
+
+    retirement_year_gap = fire_year - target_retirement_year if reached else -1.0
+    alt_reached = bool(alt_years_to_fire_sim["reached"]) if alt_years_to_fire_sim else False
+    alt_retirement_year_gap = (
+        float(alt_years_to_fire_sim["year"]) - target_retirement_year
+        if alt_years_to_fire_sim and alt_reached
+        else -1.0
+    )
+    retirement_amount_gap = round(portfolio_at_target_age - required_portfolio_at_target_age)
+
+    series_end_year = min(
+        max_projection_year,
+        max(
+            target_retirement_year + round(retirement_years_estimate),
+            (int(fire_year) + 12) if reached else target_retirement_year + 12,
+        ),
+    )
+    yearly_trajectory = [p for p in full_trajectory if int(p["period"]) <= series_end_year]
+
+    key_chart_years = {target_retirement_year, series_end_year}
+    if reached:
+        key_chart_years.add(int(fire_year))
+
+    series = [
+        p for idx, p in enumerate(yearly_trajectory)
+        if idx % 2 == 0 or idx == len(yearly_trajectory) - 1 or int(p["period"]) in key_chart_years
+    ]
+
+    scenario_adjustments = [-3.0, -2.0, -1.5, -1.0, -0.5, 0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0]
+    all_scenarios: list[dict[str, Any]] = []
+    for adjustment in scenario_adjustments:
+        scenario_after_tax_return = max(-0.95, (payload.return_pct + adjustment) * (1 - payload.tax_rate_pct / 100))
+        scenario_trajectory = _build_capital_trajectory(
+            base_year,
+            target_retirement_year,
+            series_end_year,
+            payload.starting_portfolio_eur,
+            annual_savings,
+            scenario_after_tax_return,
+            retirement_annual_expense_eur,
+            payload.post_retirement_work_income_eur,
+            payload.inflation_pct,
+        )
+        scenario_series = [
+            p for idx, p in enumerate(scenario_trajectory)
+            if idx % 2 == 0 or idx == len(scenario_trajectory) - 1 or int(p["period"]) in key_chart_years
+        ]
+        label = "Base Case (0%)" if adjustment == 0 else (f"+{adjustment:.1f}%" if adjustment > 0 else f"{adjustment:.1f}%")
+        all_scenarios.append({
+            "adjustment": adjustment,
+            "label": label,
+            "series": scenario_series,
+        })
+
+    monte_carlo_trajectory = _build_capital_trajectory(
+        base_year,
+        target_retirement_year,
+        series_end_year,
+        payload.starting_portfolio_eur,
+        annual_savings,
+        after_tax_return - 2,
+        retirement_annual_expense_eur,
+        payload.post_retirement_work_income_eur,
+        payload.inflation_pct,
+    )
+    monte_carlo_by_period = {str(p["period"]): int(p["portfolio_eur"]) for p in monte_carlo_trajectory}
+    monte_carlo_series = [
+        {
+            "period": str(point["period"]),
+            "monte_carlo_eur": int(monte_carlo_by_period.get(str(point["period"]), int(point["portfolio_eur"]))),
+        }
+        for point in series
+    ]
+
+    success_rate = _simulate_success_rate(payload, target_retirement_year)
+
+    def years_to_fire_at_return(return_pct: float) -> float:
+        scenario_after_tax_return = max(-0.95, return_pct * (1 - payload.tax_rate_pct / 100))
+        scenario_trajectory = _build_capital_trajectory(
+            base_year,
+            max_projection_year,
+            max_projection_year,
+            payload.starting_portfolio_eur,
+            annual_savings,
+            scenario_after_tax_return,
+            retirement_annual_expense_eur,
+            payload.post_retirement_work_income_eur,
+            payload.inflation_pct,
+        )
+        result = _find_fire_milestone_from_trajectory(
+            scenario_trajectory,
+            base_year,
+            retirement_annual_expense_eur,
+            payload.post_retirement_work_income_eur,
+            payload.inflation_pct,
+            adjusted_withdrawal_rate,
+            payload.capital_strategy,
+            scenario_after_tax_return,
+            payload.current_age,
+            float(payload.expected_lifetime),
+        )
+        return float(result["years_to_fire"])
+
+    sensitivity = [
+        {"bucket": "4%", "years": years_to_fire_at_return(4)},
+        {"bucket": "5%", "years": years_to_fire_at_return(5)},
+        {"bucket": "6%", "years": years_to_fire_at_return(6)},
+        {"bucket": "7%", "years": years_to_fire_at_return(7)},
+        {"bucket": "8%", "years": years_to_fire_at_return(8)},
+    ]
+
+    return {
+        "years_to_fire": years_to_fire,
+        "success_rate": success_rate,
+        "fire_year": fire_year,
+        "projected": projected,
+        "portfolio_at_target_age": portfolio_at_target_age,
+        "fire_target_eur": required_portfolio_at_target_age,
+        "alt_years_to_fire": float(alt_years_to_fire_sim["years_to_fire"]) if alt_years_to_fire_sim and alt_reached else -1.0,
+        "alt_fire_year": float(alt_years_to_fire_sim["year"]) if alt_years_to_fire_sim and alt_reached else -1.0,
+        "alt_retirement_year_gap": alt_retirement_year_gap,
+        "after_tax_return": after_tax_return,
+        "series": series,
+        "monte_carlo_series": monte_carlo_series,
+        "all_scenarios": all_scenarios,
+        "sensitivity": sensitivity,
+        "retirement_years_estimate": retirement_years_estimate,
+        "annual_expense_gap_in_retirement": annual_expense_gap_in_retirement,
+        "adjusted_withdrawal_rate": adjusted_withdrawal_rate,
+        "profile_current_age": payload.current_age,
+        "profile_expected_lifetime": payload.expected_lifetime,
+        "target_retirement_year": target_retirement_year,
+        "retirement_year_gap": retirement_year_gap,
+        "retirement_amount_gap": retirement_amount_gap,
+    }
+
+
+def calculate_fire_projection_for_scenario(
+    db: Session,
+    scenario_id: str,
+    current_age: float | None = None,
+    expected_lifetime: int | None = None,
+) -> dict[str, Any] | None:
+    scenario = get_fire_scenario(db, scenario_id)
+    if not scenario:
+        return None
+
+    fallback_age = 40.0
+    fallback_lifetime = 90
+    active_profiles = (
+        db.query(WealthPersonProfile)
+        .filter(WealthPersonProfile.is_active.is_(True))
+        .order_by(WealthPersonProfile.created_at.asc())
+        .limit(2)
+        .all()
+    )
+    if active_profiles:
+        ages = [float(p.current_age) for p in active_profiles if p.current_age is not None]
+        lifetimes = [int(p.expected_lifetime) for p in active_profiles if p.expected_lifetime is not None]
+        if scenario.profile_scope == "both":
+            if ages:
+                fallback_age = sum(ages) / len(ages)
+            if lifetimes:
+                fallback_lifetime = round(sum(lifetimes) / len(lifetimes))
+        else:
+            idx = 0 if scenario.profile_scope == "p-1" else 1
+            if idx < len(active_profiles):
+                selected = active_profiles[idx]
+                if selected.current_age is not None:
+                    fallback_age = float(selected.current_age)
+                if selected.expected_lifetime is not None:
+                    fallback_lifetime = int(selected.expected_lifetime)
+
+    payload = FireProjectionInput(
+        annual_income_eur=scenario.annual_income_eur,
+        annual_expenses_eur=scenario.annual_expenses_eur,
+        use_custom_retirement_expense=scenario.use_custom_retirement_expense,
+        retirement_annual_expense_eur=scenario.retirement_annual_expense_eur,
+        return_pct=scenario.return_pct,
+        tax_rate_pct=scenario.tax_rate_pct,
+        inflation_pct=scenario.inflation_pct,
+        withdrawal_rate_pct=scenario.withdrawal_rate_pct,
+        profile_scope=scenario.profile_scope,
+        target_retirement_age=scenario.target_retirement_age,
+        post_retirement_work_income_eur=scenario.post_retirement_work_income_eur,
+        capital_strategy=scenario.capital_strategy,
+        starting_portfolio_eur=scenario.starting_portfolio_eur,
+        current_age=float(current_age if current_age is not None else fallback_age),
+        expected_lifetime=int(expected_lifetime if expected_lifetime is not None else fallback_lifetime),
+    )
+    return calculate_fire_projection(payload)

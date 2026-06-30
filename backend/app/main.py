@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .api.routes import auth, capacity, chatbot, config, dependencies, okr, wealth
+from .api.routes import auth, capacity, config, wealth
 from .events import startup_event
 
 
@@ -68,9 +68,6 @@ app.include_router(auth.router, prefix="/api", tags=["auth"])
 
 # Domain routes
 app.include_router(config.router, prefix="/api")
-app.include_router(okr.router, prefix="/api")
-app.include_router(dependencies.router, prefix="/api")
 app.include_router(capacity.router, prefix="/api")
-app.include_router(chatbot.router, prefix="/api")
 app.include_router(wealth.router, prefix="/api")
 app.include_router(wealth.public_router, prefix="/api")

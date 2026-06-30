@@ -2,8 +2,6 @@ import { expect, test } from "@playwright/test";
 
 const routes = [
   "/",
-  "/okr",
-  "/dependencies",
   "/capacity",
   "/config",
   "/charts",
@@ -14,7 +12,6 @@ const routes = [
   "/advanced",
   "/exploratory",
   "/notifications",
-  "/chatbot",
 ];
 
 test.describe("Phase 7 route smoke", () => {

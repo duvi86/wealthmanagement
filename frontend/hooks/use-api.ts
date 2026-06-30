@@ -4,14 +4,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import apiClient from "@/lib/api-client";
 import type {
   ConfigResponse,
-  OkrStructureResponse,
-  DependenciesResponse,
-  DependentProgressResponse,
   CapacityInput,
   CapacityResult,
-  ChatRequest,
-  ChatResponse,
-  Dependency,
 } from "@/lib/types";
 
 // ============================================================================
@@ -27,80 +21,12 @@ export function useConfig() {
 }
 
 // ============================================================================
-// OKR Queries
-// ============================================================================
-
-export function useOkrStructure() {
-  return useQuery<OkrStructureResponse>({
-    queryKey: ["okr", "structure"],
-    queryFn: async () => apiClient.get("/api/okr/structure"),
-    staleTime: 1000 * 60 * 10, // 10 minutes
-  });
-}
-
-// ============================================================================
-// Dependency Queries & Mutations
-// ============================================================================
-
-export function useDependenciesForKr(sourceKrId: number) {
-  return useQuery<DependenciesResponse>({
-    queryKey: ["dependencies", sourceKrId],
-    queryFn: async () => apiClient.get(`/api/dependencies/kr/${sourceKrId}`),
-    staleTime: 1000 * 60 * 5,
-  });
-}
-
-export function useDependentProgress(sourceKrId: number) {
-  return useQuery<DependentProgressResponse>({
-    queryKey: ["dependencies", sourceKrId, "progress"],
-    queryFn: async () => apiClient.get(`/api/dependencies/kr/${sourceKrId}/progress`),
-    staleTime: 1000 * 60 * 5,
-  });
-}
-
-export function useCreateDependency() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (payload: Omit<Dependency, "id" | "target_title" | "target_progress">) =>
-      apiClient.post("/api/dependencies", payload),
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: ["dependencies", variables.source_kr_id],
-      });
-    },
-  });
-}
-
-export function useDeleteDependency() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (dependencyId: number) =>
-      apiClient.delete(`/api/dependencies/${dependencyId}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["dependencies"],
-      });
-    },
-  });
-}
-
-// ============================================================================
 // Capacity Queries
 // ============================================================================
 
 export function useCalculateCapacity(payload: CapacityInput | null) {
   return useMutation<CapacityResult, unknown, CapacityInput>({
     mutationFn: async (input) => apiClient.post("/api/capacity/rag", input),
-  });
-}
-
-// ============================================================================
-// Chatbot Mutations
-// ============================================================================
-
-export function useChatbot() {
-  return useMutation<ChatResponse, unknown, ChatRequest>({
-    mutationFn: async (payload) => apiClient.post("/api/chat", payload),
   });
 }
 
@@ -445,6 +371,53 @@ export type WealthFireScenario = {
   accountIds: string[];
 };
 
+export type WealthFireProjectionInput = {
+  annualIncomeEur: number;
+  annualExpensesEur: number;
+  useCustomRetirementExpense: boolean;
+  retirementAnnualExpenseEur: number;
+  returnPct: number;
+  taxRatePct: number;
+  inflationPct: number;
+  withdrawalRatePct: number;
+  profileScope: "p-1" | "p-2" | "both";
+  targetRetirementAge: number;
+  postRetirementWorkIncomeEur: number;
+  capitalStrategy: "protect" | "deplete";
+  startingPortfolioEur: number;
+  currentAge: number;
+  expectedLifetime: number;
+};
+
+export type WealthFireProjectionOut = {
+  yearsToFire: number;
+  successRate: number;
+  fireYear: number;
+  projected: number;
+  portfolioAtTargetAge: number;
+  fireTargetEur: number;
+  altYearsToFire: number;
+  altFireYear: number;
+  altRetirementYearGap: number;
+  afterTaxReturn: number;
+  series: Array<{ period: string; portfolioEur: number }>;
+  monteCarloSeries: Array<{ period: string; monteCarloEur: number }>;
+  allScenarios: Array<{
+    adjustment: number;
+    label: string;
+    series: Array<{ period: string; portfolioEur: number }>;
+  }>;
+  sensitivity: Array<{ bucket: string; years: number }>;
+  retirementYearsEstimate: number;
+  annualExpenseGapInRetirement: number;
+  adjustedWithdrawalRate: number;
+  profileCurrentAge: number;
+  profileExpectedLifetime: number;
+  targetRetirementYear: number;
+  retirementYearGap: number;
+  retirementAmountGap: number;
+};
+
 export function useWealthFireScenarios() {
   return useQuery<WealthFireScenario[]>({
     queryKey: ["wealth", "fire-scenarios"],
@@ -476,6 +449,29 @@ export function useDeleteWealthFireScenario() {
   return useMutation({
     mutationFn: async (id: string) => apiClient.delete(`/api/wealth/fire-scenarios/${id}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["wealth", "fire-scenarios"] }),
+  });
+}
+
+export function useComputeWealthFireProjection() {
+  return useMutation<WealthFireProjectionOut, unknown, WealthFireProjectionInput>({
+    mutationFn: async (payload) => apiClient.post("/api/wealth/fire-scenarios/projection", payload),
+  });
+}
+
+export function useComputeStoredWealthFireProjection() {
+  return useMutation<WealthFireProjectionOut, unknown, {
+    scenarioId: string;
+    currentAge?: number;
+    expectedLifetime?: number;
+  }>({
+    mutationFn: async ({ scenarioId, currentAge, expectedLifetime }) => {
+      const params = new URLSearchParams();
+      if (currentAge != null) params.set("current_age", String(currentAge));
+      if (expectedLifetime != null) params.set("expected_lifetime", String(expectedLifetime));
+      const qs = params.toString();
+      const path = `/api/wealth/fire-scenarios/${scenarioId}/projection${qs ? `?${qs}` : ""}`;
+      return apiClient.post(path);
+    },
   });
 }
 

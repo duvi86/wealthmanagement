@@ -536,3 +536,42 @@ async def test_import_accounts_csv_uses_live_fx_when_missing(client: AsyncClient
         if item["account_name"] == f"Live FX {suffix}" and item["updated_at"] == "2026-06-30"
     )
     assert imported["fx_to_eur"] == pytest.approx(0.95)
+
+
+@pytest.mark.anyio
+async def test_compute_fire_projection_endpoint(client: AsyncClient):
+    payload = {
+        "annual_income_eur": 128000,
+        "annual_expenses_eur": 70000,
+        "use_custom_retirement_expense": False,
+        "retirement_annual_expense_eur": 70000,
+        "return_pct": 6.0,
+        "tax_rate_pct": 24.0,
+        "inflation_pct": 2.2,
+        "withdrawal_rate_pct": 3.8,
+        "profile_scope": "both",
+        "target_retirement_age": 52,
+        "post_retirement_work_income_eur": 12000,
+        "capital_strategy": "protect",
+        "starting_portfolio_eur": 283500,
+        "current_age": 39,
+        "expected_lifetime": 91,
+    }
+
+    resp = await client.post("/api/wealth/fire-scenarios/projection", json=payload)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "years_to_fire" in body
+    assert "success_rate" in body
+    assert "series" in body
+    assert isinstance(body["series"], list)
+
+
+@pytest.mark.anyio
+async def test_compute_stored_fire_projection_endpoint(client: AsyncClient):
+    resp = await client.post("/api/wealth/fire-scenarios/fs-1/projection")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "target_retirement_year" in body
+    assert "fire_target_eur" in body
+    assert isinstance(body["all_scenarios"], list)
