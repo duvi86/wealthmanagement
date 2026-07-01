@@ -20,6 +20,7 @@ type BarChartProps = {
   series: BarSeries[];
   height?: number | `${number}%`;
   stacked?: boolean;
+  xAxisInterval?: number | "preserveStart" | "preserveEnd" | "preserveStartEnd";
   xLabel?: string;
   yLabel?: string;
   formatValue?: (value: number) => string;
@@ -184,6 +185,7 @@ export function BarChart({
   series,
   height = 300,
   stacked = false,
+  xAxisInterval,
   xLabel,
   yLabel,
   formatValue = String,
@@ -206,6 +208,7 @@ export function BarChart({
         <CartesianGrid strokeDasharray="3 3" stroke="var(--color-stroke-primary)" />
         <XAxis
           dataKey={xKey}
+          interval={xAxisInterval}
           tick={{ fontSize: 12, fontFamily: "var(--font-regular)" }}
           label={xLabel ? { value: xLabel, position: "insideBottom", offset: -12, fontSize: 12 } : undefined}
         />
