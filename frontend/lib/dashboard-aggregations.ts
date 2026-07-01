@@ -58,11 +58,24 @@ export function buildFireTargetSeries(
   fireScenarios: WealthFireScenario[],
   currentNetWorthEur: number,
 ): Array<{ dataKey: string; name: string; color: string; targetEur: number }> {
-  return fireScenarios.map((scenario, index) => ({
+  const series = fireScenarios
+    .map((scenario, index) => ({
+      scenario,
+      index,
+      targetEur: computeComparableFireTargetEur(scenario, currentNetWorthEur),
+    }))
+    .sort((left, right) => {
+      if (right.targetEur !== left.targetEur) {
+        return right.targetEur - left.targetEur;
+      }
+      return left.scenario.name.localeCompare(right.scenario.name) || left.index - right.index;
+    });
+
+  return series.map(({ scenario, targetEur }, index) => ({
     dataKey: `fireScenarioTarget_${scenario.id}`,
     name: scenario.name,
     color: FIRE_TARGET_COLORS[index % FIRE_TARGET_COLORS.length],
-    targetEur: computeComparableFireTargetEur(scenario, currentNetWorthEur),
+    targetEur,
   }));
 }
 

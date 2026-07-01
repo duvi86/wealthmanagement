@@ -143,6 +143,8 @@ _MORTGAGE_COLUMNS = {
     "mortgage_type",
 }
 
+_LINE_DRIVEN_ACCOUNT_TYPES = {"Investment", "Private Equity", "Property"}
+
 
 def _compute_amortized_balance(principal: float, annual_rate_pct: float, term_months: int, start_date: str, at_date: str) -> float:
     """Return the remaining loan balance at `at_date` (YYYY-MM-DD) using a fixed-rate amortization schedule.
@@ -523,6 +525,17 @@ def import_accounts_from_csv(db: Session, content: bytes) -> AccountImportSummar
         )
         for account in existing_accounts
     }
+    existing_accounts_by_key = {
+        (
+            _normalize(account.owner_name),
+            _normalize(account.account_name),
+            _normalize(account.institution),
+            account.type,
+            account.currency,
+            account.updated_at,
+        ): account
+        for account in existing_accounts
+    }
 
     owner_name_to_id: dict[str, str] = {}
     profile_name_to_id = {
@@ -828,6 +841,21 @@ def import_accounts_from_csv(db: Session, content: bytes) -> AccountImportSummar
                     date_column,
                 )
                 if dedupe_key in existing_keys:
+                    if account_type in {"Savings", "Cash"} and dedupe_key in existing_accounts_by_key:
+                        existing_account = existing_accounts_by_key[dedupe_key]
+                        existing_account.owner_id = owner_id
+                        existing_account.owner_name = owner_name
+                        existing_account.co_owner_name = co_owner_name_raw
+                        existing_account.co_owner_id = co_owner_id
+                        existing_account.account_name = account_name
+                        existing_account.institution = institution
+                        existing_account.type = account_type
+                        existing_account.currency = currency
+                        existing_account.native_balance = native_balance
+                        existing_account.fx_to_eur = fx_to_eur
+                        existing_account.expected_return_pct = expected_return_pct
+                        existing_account.allocation_bucket = allocation_bucket_raw or None
+                        continue
                     skipped_count += 1
                     continue
 
@@ -954,7 +982,7 @@ def create_account(db: Session, data: AccountCreate) -> WealthAccount:
 
     derived_expected_return_pct = data.expected_return_pct
     derived_native_balance = data.native_balance
-    if data.portfolio_lines:
+    if data.portfolio_lines and data.type in _LINE_DRIVEN_ACCOUNT_TYPES:
         derived_expected_return_pct = _weighted_expected_return_from_lines(data.portfolio_lines)
         derived_native_balance = _native_balance_from_lines(data.portfolio_lines, float(data.fx_to_eur))
 
@@ -1064,7 +1092,7 @@ def update_account(db: Session, account_id: str, data: AccountUpdate) -> Optiona
                 fx_to_eur=line.fx_to_eur,
                 expected_return_pct=line.expected_return_pct,
             ))
-        if data.portfolio_lines:
+        if data.portfolio_lines and account.type in _LINE_DRIVEN_ACCOUNT_TYPES:
             account.expected_return_pct = _weighted_expected_return_from_lines(data.portfolio_lines)
             account.native_balance = _native_balance_from_lines(data.portfolio_lines, float(account.fx_to_eur))
 

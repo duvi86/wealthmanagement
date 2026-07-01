@@ -161,6 +161,63 @@ async def test_update_account_native_balance_is_derived_from_portfolio_lines(cli
 
 
 @pytest.mark.anyio
+async def test_update_savings_account_keeps_explicit_balance_with_portfolio_lines_patch(client: AsyncClient):
+    account_id = f"a-update-savings-{uuid4().hex[:8]}"
+    create_payload = {
+        "id": account_id,
+        "owner_id": "owner-matthieu-duvinage",
+        "owner_name": "Matthieu Duvinage",
+        "account_name": "Savings Update Account",
+        "institution": "Test Bank",
+        "type": "Savings",
+        "currency": "EUR",
+        "native_balance": 100000.0,
+        "fx_to_eur": 1.0,
+        "expected_return_pct": 2.0,
+        "allocation_bucket": "Savings",
+        "updated_at": "2026-05-01",
+        "portfolio_lines": [],
+    }
+    create_resp = await client.post("/api/wealth/accounts", json=create_payload)
+    assert create_resp.status_code == 201
+
+    patch_payload = {
+        "native_balance": 102000.0,
+        "expected_return_pct": 2.5,
+        "portfolio_lines": [
+            {
+                "id": f"pl-{uuid4().hex[:8]}",
+                "label": "Line A",
+                "allocation_bucket": "Savings",
+                "area": "Europe",
+                "market_type": "Developed Market",
+                "currency": "EUR",
+                "native_amount": 40000.0,
+                "fx_to_eur": 1.0,
+                "expected_return_pct": 1.0,
+            },
+            {
+                "id": f"pl-{uuid4().hex[:8]}",
+                "label": "Line B",
+                "allocation_bucket": "Savings",
+                "area": "Europe",
+                "market_type": "Developed Market",
+                "currency": "EUR",
+                "native_amount": 60000.0,
+                "fx_to_eur": 1.0,
+                "expected_return_pct": 1.5,
+            },
+        ],
+    }
+
+    update_resp = await client.patch(f"/api/wealth/accounts/{account_id}", json=patch_payload)
+    assert update_resp.status_code == 200
+    body = update_resp.json()
+    assert body["native_balance"] == pytest.approx(102000.0)
+    assert body["expected_return_pct"] == pytest.approx(2.5)
+
+
+@pytest.mark.anyio
 async def test_list_snapshots(client: AsyncClient):
     resp = await client.get("/api/wealth/snapshots")
     assert resp.status_code == 200
@@ -449,11 +506,11 @@ async def test_import_accounts_csv_missing_date_headers(client: AsyncClient):
 
 
 @pytest.mark.anyio
-async def test_import_accounts_csv_rerun_skips_duplicates(client: AsyncClient):
+async def test_import_accounts_csv_rerun_skips_duplicates_for_investment(client: AsyncClient):
     suffix = uuid4().hex[:8]
     csv_payload = (
         "owner_name,account_name,institution,account_type,currency,expected_return_pct,allocation_bucket,2026-03-31,2026-04-30\n"
-        f"Sylvie Duvinage,Duplicate Check {suffix},Boursorama,Savings,EUR,2.0,Savings,9000,9200\n"
+        f"Sylvie Duvinage,Duplicate Check {suffix},Boursorama,Investment,EUR,7.0,Stocks,9000,9200\n"
     )
 
     first = await client.post(
@@ -474,6 +531,50 @@ async def test_import_accounts_csv_rerun_skips_duplicates(client: AsyncClient):
     assert second_body["error_count"] == 0
     assert second_body["created_count"] == 0
     assert second_body["skipped_count"] == 2
+
+
+@pytest.mark.anyio
+async def test_import_accounts_csv_rerun_overwrites_duplicates_for_savings(client: AsyncClient):
+    suffix = uuid4().hex[:8]
+    initial_payload = (
+        "owner_name,account_name,institution,account_type,currency,expected_return_pct,allocation_bucket,2026-06-30\n"
+        f"Sylvie Duvinage,Savings Overwrite {suffix},Boursorama,Savings,EUR,2.0,Savings,100000\n"
+    )
+
+    first = await client.post(
+        "/api/wealth/accounts/import",
+        files={"file": ("savings_initial.csv", initial_payload, "text/csv")},
+    )
+    assert first.status_code == 200
+    first_body = first.json()
+    assert first_body["error_count"] == 0
+    assert first_body["created_count"] == 1
+
+    overwrite_payload = (
+        "owner_name,account_name,institution,account_type,currency,expected_return_pct,allocation_bucket,2026-06-30\n"
+        f"Sylvie Duvinage,Savings Overwrite {suffix},Boursorama,Savings,EUR,2.5,Savings,102000\n"
+    )
+
+    second = await client.post(
+        "/api/wealth/accounts/import",
+        files={"file": ("savings_overwrite.csv", overwrite_payload, "text/csv")},
+    )
+    assert second.status_code == 200
+    second_body = second.json()
+    assert second_body["error_count"] == 0
+    assert second_body["created_count"] == 0
+    assert second_body["skipped_count"] == 0
+
+    accounts_resp = await client.get("/api/wealth/accounts")
+    assert accounts_resp.status_code == 200
+    matching = [
+        item
+        for item in accounts_resp.json()
+        if item["account_name"] == f"Savings Overwrite {suffix}" and item["updated_at"] == "2026-06-30"
+    ]
+    assert len(matching) == 1
+    assert matching[0]["native_balance"] == pytest.approx(102000)
+    assert matching[0]["expected_return_pct"] == pytest.approx(2.5)
 
 
 @pytest.mark.anyio
