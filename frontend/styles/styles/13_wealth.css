@@ -124,12 +124,12 @@
 }
 
 .toggle-switch:hover {
-  border-color: var(--color-stroke-info);
+  border-color: var(--color-accent-primary);
 }
 
 .toggle-switch:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-chart-series-1) 35%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent-primary) 35%, transparent);
 }
 
 .toggle-switch-track {
@@ -162,18 +162,18 @@
 }
 
 .toggle-switch.is-on {
-  border-color: var(--color-chart-series-1);
-  background: color-mix(in srgb, var(--color-chart-series-1) 10%, var(--color-surface-primary));
+  border-color: var(--color-accent-primary);
+  background: color-mix(in srgb, var(--color-accent-primary) 10%, var(--color-surface-primary));
 }
 
 .toggle-switch.is-on .toggle-switch-track {
-  background: var(--color-chart-series-1);
-  border-color: var(--color-chart-series-1);
+  background: var(--color-accent-primary);
+  border-color: var(--color-accent-primary);
 }
 
 .toggle-switch.is-on .toggle-switch-thumb {
   transform: translateX(18px);
-  border-color: color-mix(in srgb, var(--color-chart-series-1) 70%, #ffffff);
+  border-color: color-mix(in srgb, var(--color-accent-primary) 70%, #ffffff);
 }
 
 @media (max-width: 1080px) {

@@ -32,10 +32,17 @@ import {
 import { useWealthAccounts, useWealthFireScenarios } from "@/hooks/use-api";
 
 export default function WealthDashboardPage() {
-  const { data: rawAccounts = [], isLoading: accountsLoading, isError: accountsError } = useWealthAccounts();
+  const {
+    data: rawAccounts = [],
+    isLoading: accountsLoading,
+    isError: accountsError,
+    error: accountsQueryError,
+  } = useWealthAccounts();
   const { data: fireScenarios = [] } = useWealthFireScenarios();
   const isLoading = accountsLoading;
   const isError = accountsError;
+  const isUnauthorized =
+    (accountsQueryError as { status?: number } | null | undefined)?.status === 401;
 
   const accounts = useMemo<Account[]>(
     () =>
@@ -257,6 +264,14 @@ export default function WealthDashboardPage() {
     });
 
     const totalEur = Array.from(rowTotals.values()).reduce((sum, value) => sum + value, 0);
+    const columnSummaries = columns.map((column) => {
+      const columnTotalEur = Array.from(matrix.values()).reduce((sum, row) => sum + (row.get(column) ?? 0), 0);
+      return {
+        column,
+        columnTotalEur,
+        columnPct: totalEur > 0 ? (columnTotalEur / totalEur) * 100 : 0,
+      };
+    });
     const activeRows = Array.from(matrix.keys());
     const expectedCellPct = activeRows.length > 0 && columns.length > 0 ? 100 / (activeRows.length * columns.length) : 0;
 
@@ -322,6 +337,7 @@ export default function WealthDashboardPage() {
 
     return {
       columns,
+      columnSummaries,
       rows,
       totalEur,
       expectedCellPct,
@@ -522,7 +538,15 @@ export default function WealthDashboardPage() {
         <SurfaceCard><Skeleton lines={6} /></SurfaceCard>
       ) : isError ? (
         <SurfaceCard>
-          <p style={{ color: "var(--color-status-error)" }}>Failed to load dashboard data. Check that the backend is running.</p>
+          {isUnauthorized ? (
+            <p style={{ color: "var(--color-status-error)" }}>
+              Authentication required. Please sign in from the Login page to load your dashboard data.
+            </p>
+          ) : (
+            <p style={{ color: "var(--color-status-error)" }}>
+              Failed to load dashboard data. Check that the backend is running.
+            </p>
+          )}
         </SurfaceCard>
       ) : accounts.length === 0 ? (
         <EmptyState
@@ -637,14 +661,14 @@ export default function WealthDashboardPage() {
                   />
                 </div>
               </div>
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, gap: 6 }}>
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, gap: 4 }}>
                 <div
                   style={{
                     display: "flex",
                     flexWrap: "wrap",
                     gap: 8,
                     alignItems: "center",
-                    fontSize: 10,
+                    fontSize: 9,
                     color: "var(--color-text-subtle)",
                   }}
                 >
@@ -663,7 +687,7 @@ export default function WealthDashboardPage() {
                   style={{
                     border: "1px solid var(--color-stroke-primary)",
                     borderRadius: 7,
-                    padding: 6,
+                    padding: 4,
                     background:
                       "linear-gradient(180deg, color-mix(in srgb, var(--color-surface-secondary) 45%, transparent), var(--color-surface-primary))",
                   }}
@@ -674,7 +698,7 @@ export default function WealthDashboardPage() {
                     </p>
                   ) : (
                     <>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 6, marginTop: 2, fontSize: 9 }}>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 4, marginTop: 0, fontSize: 8 }}>
                         <span
                           style={{
                             padding: "1px 6px",
@@ -713,16 +737,16 @@ export default function WealthDashboardPage() {
                         style={{
                           display: "grid",
                           gridTemplateColumns: `minmax(104px, 1.15fr) repeat(${jointExposure.columns.length}, minmax(0, 1fr))`,
-                          gap: 3,
+                          gap: 2,
                           alignItems: "stretch",
                         }}
                       >
                         <div
                           style={{
-                            padding: "4px 6px",
+                            padding: "3px 5px",
                             borderRadius: 6,
                             background: "var(--color-surface-secondary)",
-                            fontSize: 9,
+                            fontSize: 8,
                             fontFamily: "var(--font-semibold)",
                           }}
                         >
@@ -732,7 +756,7 @@ export default function WealthDashboardPage() {
                           <div
                             key={column}
                             style={{
-                              padding: "4px 2px",
+                              padding: "3px 2px",
                               borderRadius: 6,
                               background: "var(--color-surface-secondary)",
                               fontSize: 8,
@@ -748,10 +772,10 @@ export default function WealthDashboardPage() {
                           <Fragment key={row.assetClass}>
                             <div
                               style={{
-                                padding: "4px 5px",
+                                padding: "3px 4px",
                                 borderRadius: 6,
                                 border: "1px solid var(--color-stroke-primary)",
-                                fontSize: 10,
+                                fontSize: 9,
                                 background: "var(--color-surface-primary)",
                                 display: "flex",
                                 flexDirection: "column",
@@ -761,7 +785,10 @@ export default function WealthDashboardPage() {
                               title={`${formatMoney(row.rowTotalEur, "EUR")} (${row.rowPct.toFixed(1)}% of tracked exposure)`}
                             >
                               <span style={{ fontFamily: "var(--font-semibold)" }}>{row.assetClass}</span>
-                              <span style={{ color: "var(--color-text-subtle)", fontSize: 8 }}>{row.rowPct.toFixed(1)}%</span>
+                              <span style={{ color: "var(--color-text-subtle)", fontSize: 7 }}>{row.rowPct.toFixed(1)}%</span>
+                              <span style={{ color: "var(--color-text-subtle)", fontSize: 7 }}>
+                                {formatMoney(row.rowTotalEur, "EUR")}
+                              </span>
                             </div>
 
                             {row.cells.map((cell) => {
@@ -793,12 +820,12 @@ export default function WealthDashboardPage() {
                                     border: `1px solid ${severity.border}`,
                                     background: severity.bg,
                                     color: severity.text,
-                                    fontSize: 9,
+                                    fontSize: 8,
                                     textAlign: "center",
                                     display: "flex",
                                     alignItems: "center",
                                     justifyContent: "center",
-                                    minHeight: 28,
+                                    minHeight: 24,
                                     padding: "2px 1px",
                                     lineHeight: 1.1,
                                   }}
@@ -816,6 +843,51 @@ export default function WealthDashboardPage() {
                             })}
                           </Fragment>
                         ))}
+
+                        <div
+                          style={{
+                            padding: "3px 4px",
+                            borderRadius: 6,
+                            border: "1px solid var(--color-stroke-primary)",
+                            fontSize: 9,
+                            background: "var(--color-surface-secondary)",
+                            display: "flex",
+                            flexDirection: "column",
+                            justifyContent: "center",
+                            gap: 1,
+                          }}
+                          title="Column total across all asset classes"
+                        >
+                          <span style={{ fontFamily: "var(--font-semibold)" }}>Column Total</span>
+                          <span style={{ color: "var(--color-text-subtle)", fontSize: 8 }}>share + EUR</span>
+                        </div>
+                        {jointExposure.columnSummaries.map((summary) => (
+                          <div
+                            key={`column-total-${summary.column}`}
+                            style={{
+                              borderRadius: 6,
+                              border: "1px solid var(--color-stroke-primary)",
+                              background: "var(--color-surface-secondary)",
+                              color: "var(--color-text-default)",
+                              fontSize: 8,
+                              textAlign: "center",
+                              display: "flex",
+                              flexDirection: "column",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              minHeight: 24,
+                              padding: "2px 1px",
+                              lineHeight: 1.1,
+                              gap: 1,
+                            }}
+                            title={`${summary.column}\nAmount: ${formatMoney(summary.columnTotalEur, "EUR")}\nShare: ${summary.columnPct.toFixed(1)}%`}
+                          >
+                            <span style={{ fontFamily: "var(--font-semibold)" }}>{summary.columnPct.toFixed(1)}%</span>
+                            <span style={{ color: "var(--color-text-subtle)", fontSize: 8 }}>
+                              {formatMoney(summary.columnTotalEur, "EUR")}
+                            </span>
+                          </div>
+                        ))}
                       </div>
                     </>
                   )}
@@ -823,7 +895,7 @@ export default function WealthDashboardPage() {
 
                 <div
                   style={{
-                    fontSize: 10,
+                    fontSize: 9,
                     color: "var(--color-text-subtle)",
                     lineHeight: 1.25,
                     whiteSpace: "nowrap",
