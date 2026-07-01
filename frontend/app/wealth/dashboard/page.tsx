@@ -159,8 +159,18 @@ export default function WealthDashboardPage() {
   const jointExposure = useMemo(() => {
     const matrix = new Map<string, Map<string, number>>();
     const dynamicColumns = new Set<string>();
+    const contributorsByCell = new Map<
+      string,
+      Map<string, { label: string; accountName: string; amountEur: number }>
+    >();
 
-    const addValue = (assetClass: string, market: MarketGroup, currency: string, amountEur: number) => {
+    const addValue = (
+      assetClass: string,
+      market: MarketGroup,
+      currency: string,
+      amountEur: number,
+      contributor?: { label: string; accountName: string },
+    ) => {
       if (amountEur <= 0) return;
       const normalizedCurrency = (currency || "Unknown").toUpperCase();
       const column = `${market}-${normalizedCurrency}`;
@@ -169,6 +179,23 @@ export default function WealthDashboardPage() {
       const row = matrix.get(assetClass) ?? new Map<string, number>();
       row.set(column, (row.get(column) ?? 0) + amountEur);
       matrix.set(assetClass, row);
+
+      if (contributor) {
+        const cellKey = `${assetClass}\u0001${column}`;
+        const cellContributors = contributorsByCell.get(cellKey) ?? new Map<string, { label: string; accountName: string; amountEur: number }>();
+        const contributorKey = `${contributor.accountName}\u0001${contributor.label}`;
+        const existing = cellContributors.get(contributorKey);
+        if (existing) {
+          existing.amountEur += amountEur;
+        } else {
+          cellContributors.set(contributorKey, {
+            label: contributor.label,
+            accountName: contributor.accountName,
+            amountEur,
+          });
+        }
+        contributorsByCell.set(cellKey, cellContributors);
+      }
     };
 
     latestDateAccounts.forEach((account) => {
@@ -186,7 +213,16 @@ export default function WealthDashboardPage() {
           const bucket = resolveAllocationBucketForJoint(account, line);
           const marketType = (line as { marketType?: string; market_type?: string }).marketType
             ?? (line as { marketType?: string; market_type?: string }).market_type;
-          addValue(bucket, normalizeMarketType(marketType), String(line.currency ?? account.currency), amountEur);
+          addValue(
+            bucket,
+            normalizeMarketType(marketType),
+            String(line.currency ?? account.currency),
+            amountEur,
+            {
+              label: String(line.label ?? account.accountName),
+              accountName: account.accountName,
+            },
+          );
         });
         return;
       }
@@ -196,7 +232,10 @@ export default function WealthDashboardPage() {
         return;
       }
       const bucket = resolveAllocationBucketForJoint(account);
-      addValue(bucket, "Developed", String(account.currency), amountEur);
+      addValue(bucket, "Developed", String(account.currency), amountEur, {
+        label: account.accountName,
+        accountName: account.accountName,
+      });
     });
 
     // Determine which currencies to include: EUR & USD always, CHF only if data exists
@@ -229,6 +268,10 @@ export default function WealthDashboardPage() {
           const amountEur = row.get(column) ?? 0;
           const pct = totalEur > 0 ? (amountEur / totalEur) * 100 : 0;
           const deviationPct = pct - expectedCellPct;
+          const cellKey = `${assetClass}\u0001${column}`;
+          const topContributors = Array.from(contributorsByCell.get(cellKey)?.values() ?? [])
+            .sort((left, right) => right.amountEur - left.amountEur)
+            .slice(0, 5);
           return {
             column,
             amountEur,
@@ -236,6 +279,7 @@ export default function WealthDashboardPage() {
             expectedPct: expectedCellPct,
             deviationPct,
             absDeviationPct: Math.abs(deviationPct),
+            topContributors,
           };
         });
 
@@ -757,7 +801,13 @@ export default function WealthDashboardPage() {
                                     padding: "2px 1px",
                                     lineHeight: 1.1,
                                   }}
-                                  title={`${row.assetClass} / ${cell.column}\nAmount: ${formatMoney(cell.amountEur, "EUR")}\nActual: ${cell.pct.toFixed(1)}%\nExpected: ${cell.expectedPct.toFixed(1)}%\nDeviation: ${cell.deviationPct >= 0 ? "+" : ""}${cell.deviationPct.toFixed(1)}%`}
+                                  title={`${row.assetClass} / ${cell.column}\nAmount: ${formatMoney(cell.amountEur, "EUR")}\nActual: ${cell.pct.toFixed(1)}%\nExpected: ${cell.expectedPct.toFixed(1)}%\nDeviation: ${cell.deviationPct >= 0 ? "+" : ""}${cell.deviationPct.toFixed(1)}%\nTop 5:\n${cell.topContributors.length > 0
+                                    ? cell.topContributors
+                                      .map(
+                                        (item, index) => `${index + 1}. ${item.label} (${item.accountName}) - ${formatMoney(item.amountEur, "EUR")}`,
+                                      )
+                                      .join("\n")
+                                    : "None"}`}
                                 >
                                   <span>{cell.pct.toFixed(1)}%</span>
                                 </div>
