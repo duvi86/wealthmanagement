@@ -515,3 +515,84 @@ export function calculateTax(country: TaxCountry, state: TaxCalculatorFormState)
       return calculatePortugal(input);
   }
 }
+
+export type WealthEvolutionDataPoint = {
+  wealth: number;
+  countries: {
+    [country in TaxCountry]: {
+      taxRate: number;
+      totalTax: number;
+      taxDelta: number;
+      rank: number;
+    };
+  };
+};
+
+export function generateWealthEvolutionData(
+  formState: TaxCalculatorFormState,
+  referenceCountry: TaxCountry = "Belgium",
+  numPoints: number = 25,
+): WealthEvolutionDataPoint[] {
+  // Generate linearly-spaced wealth values from €0 to €5M
+  const minWealth = 0;
+  const maxWealth = 5000000;
+  
+  const wealthValues: number[] = [];
+  for (let i = 0; i < numPoints; i++) {
+    const value = minWealth + (maxWealth - minWealth) * (i / (numPoints - 1));
+    wealthValues.push(Math.round(value));
+  }
+
+  // Remove duplicates (from rounding)
+  const uniqueWealths = Array.from(new Set(wealthValues));
+
+  return uniqueWealths.map((wealth) => {
+    // Create form state with this wealth value
+    const stateForWealth: TaxCalculatorFormState = {
+      ...formState,
+      portfolioValue: wealth,
+    };
+
+    // Calculate tax for all countries
+    const countryResults: Record<string, { taxRate: number; totalTax: number }> = {};
+    TAX_COUNTRY_OPTIONS.forEach(({ value: country }) => {
+      const result = calculateTax(country, stateForWealth);
+      countryResults[country] = {
+        taxRate: result.tax_rate,
+        totalTax: result.total_tax,
+      };
+    });
+
+    // Find reference country result for delta calculation
+    const referenceResult = countryResults[referenceCountry];
+    const referenceTotalTax = referenceResult?.totalTax ?? 0;
+
+    // Calculate rank (1 = lowest tax, 16 = highest tax)
+    const countriesWithTax = Object.entries(countryResults).map(([country, data]) => ({
+      country,
+      totalTax: data.totalTax,
+    }));
+    const sortedByTax = countriesWithTax.sort((a, b) => a.totalTax - b.totalTax);
+    const rankMap: Record<string, number> = {};
+    sortedByTax.forEach((item, index) => {
+      rankMap[item.country] = index + 1;
+    });
+
+    // Build result object
+    const countries: WealthEvolutionDataPoint["countries"] = {} as any;
+    TAX_COUNTRY_OPTIONS.forEach(({ value: country }) => {
+      const data = countryResults[country];
+      countries[country] = {
+        taxRate: data.taxRate,
+        totalTax: data.totalTax,
+        taxDelta: data.totalTax - referenceTotalTax,
+        rank: rankMap[country],
+      };
+    });
+
+    return {
+      wealth,
+      countries,
+    };
+  });
+}

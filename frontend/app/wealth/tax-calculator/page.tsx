@@ -13,8 +13,11 @@ import {
   type WealthTaxCalculationResult,
   type WealthTaxCalculatorInput,
 } from "@/hooks/use-api";
+import { generateWealthEvolutionData, type TaxCalculatorFormState as LibTaxCalculatorFormState } from "@/lib/investment-tax-calculator";
+import { WealthEvolutionChart } from "./WealthEvolutionChart";
 
-type ResultMode = "calculate" | "compare-countries" | "compare-scenarios";
+type ResultMode = "calculate" | "compare-countries" | "compare-scenarios" | "wealth-evolution";
+type MetricType = "taxRate" | "totalTax" | "taxDelta" | "rank";
 type TaxCalculatorFormState = WealthTaxCalculatorInput;
 type TaxCalculationResult = WealthTaxCalculationResult;
 
@@ -98,6 +101,7 @@ function makeDefaults(): TaxCalculatorFormState {
 export default function TaxCalculatorPage() {
   const [form, setForm] = useState<TaxCalculatorFormState>(makeDefaults());
   const [mode, setMode] = useState<ResultMode>("compare-scenarios");
+  const [selectedMetric, setSelectedMetric] = useState<MetricType>("taxRate");
   const [isConfigApplied, setIsConfigApplied] = useState(false);
   const { data: taxConfig } = useWealthTaxCalculatorConfig();
   const computeTax = useComputeWealthTaxCalculator();
@@ -203,6 +207,11 @@ export default function TaxCalculatorPage() {
       };
     });
   }, [computeTax.data, mode, validationError]);
+
+  const wealthEvolutionData = useMemo(() => {
+    if (validationError) return [];
+    return generateWealthEvolutionData(form as LibTaxCalculatorFormState, form.country as any);
+  }, [form, validationError]);
 
   const referenceCountryLabel =
     (countryComparison[0] as (CountryComparisonRow & { referenceCountry?: string }) | undefined)?.referenceCountry ??
@@ -319,6 +328,7 @@ export default function TaxCalculatorPage() {
           <div className="wealth-actions-row">
             <Button variant="secondary" onClick={() => setMode("compare-countries")}>Compare All Countries for Current Portfolio</Button>
             <Button variant="tertiary" onClick={() => setMode("compare-scenarios")}>Compare Scenarios for Selected Country</Button>
+            <Button variant="tertiary" onClick={() => setMode("wealth-evolution")}>Wealth Evolution</Button>
           </div>
 
           {validationError ? (
@@ -506,6 +516,54 @@ export default function TaxCalculatorPage() {
                   </table>
                 </div>
               </div>
+            </SurfaceCard>
+          ) : null}
+
+          {!validationError && mode === "wealth-evolution" ? (
+            <SurfaceCard>
+              <div className="card-header">
+                <h3 style={{ margin: 0 }}>Wealth Evolution Analysis</h3>
+              </div>
+              <p className="wealth-muted" style={{ marginTop: 0 }}>
+                {`Asset Allocation: ${form.sharesAllocationPct}% Stocks / ${100 - form.sharesAllocationPct}% Bonds | Shares Return: ${form.sharesReturnPct}% | Bonds Return: ${form.bondsReturnPct}% | Reference Country: ${form.country}`}
+              </p>
+
+              <div style={{ marginBottom: "16px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <Button
+                  variant={selectedMetric === "taxRate" ? "primary" : "secondary"}
+                  onClick={() => setSelectedMetric("taxRate")}
+                  style={{ fontSize: "12px", padding: "6px 12px" }}
+                >
+                  Tax Rate %
+                </Button>
+                <Button
+                  variant={selectedMetric === "totalTax" ? "primary" : "secondary"}
+                  onClick={() => setSelectedMetric("totalTax")}
+                  style={{ fontSize: "12px", padding: "6px 12px" }}
+                >
+                  Total Tax Amount
+                </Button>
+                <Button
+                  variant={selectedMetric === "taxDelta" ? "primary" : "secondary"}
+                  onClick={() => setSelectedMetric("taxDelta")}
+                  style={{ fontSize: "12px", padding: "6px 12px" }}
+                >
+                  Tax Delta vs {form.country}
+                </Button>
+                <Button
+                  variant={selectedMetric === "rank" ? "primary" : "secondary"}
+                  onClick={() => setSelectedMetric("rank")}
+                  style={{ fontSize: "12px", padding: "6px 12px" }}
+                >
+                  Country Ranking
+                </Button>
+              </div>
+
+              <WealthEvolutionChart
+                data={wealthEvolutionData}
+                referenceCountry={form.country as any}
+                selectedMetric={selectedMetric}
+              />
             </SurfaceCard>
           ) : null}
         </div>
