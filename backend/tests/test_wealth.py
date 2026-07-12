@@ -416,6 +416,7 @@ async def test_tax_calculator_config(client: AsyncClient):
     assert "country_options" in body
     assert "scenarios" in body
     assert "defaults" in body
+    assert "salary_eur" in body["defaults"]
     assert len(body["country_options"]) >= 10
 
 
@@ -497,6 +498,71 @@ async def test_tax_calculator_belgium_capital_gains_exemption_per_person(client:
     assert result["capital_gains_exemption"] == pytest.approx(20000)
     assert result["taxable_capital_gains"] == pytest.approx(30000)
     assert result["capital_gains_tax"] == pytest.approx(3000)
+
+
+@pytest.mark.anyio
+async def test_tax_calculator_luxembourg_salary_increases_dividend_bond_tax(client: AsyncClient):
+    base_payload = {
+        "country": "Luxembourg",
+        "portfolio_value": 1000000,
+        "inflation_rate_pct": 2,
+        "shares_return_pct": 7,
+        "bonds_return_pct": 4,
+        "dividend_yield_pct": 4,
+        "num_persons": 1,
+        "belgium_wealth_tax_pct": 1,
+        "shares_allocation_pct": 70,
+    }
+
+    low_salary_resp = await client.post(
+        "/api/wealth/tax-calculator/compute",
+        json={**base_payload, "salary_eur": 0},
+    )
+    assert low_salary_resp.status_code == 200
+    low_salary_result = low_salary_resp.json()["single_result"]
+
+    high_salary_resp = await client.post(
+        "/api/wealth/tax-calculator/compute",
+        json={**base_payload, "salary_eur": 250000},
+    )
+    assert high_salary_resp.status_code == 200
+    high_salary_result = high_salary_resp.json()["single_result"]
+
+    assert high_salary_result["capital_gains_tax"] == pytest.approx(0)
+    assert high_salary_result["dividend_tax"] > low_salary_result["dividend_tax"]
+    assert high_salary_result["bond_tax"] > low_salary_result["bond_tax"]
+
+
+@pytest.mark.anyio
+async def test_tax_calculator_luxembourg_salary_split_by_person_count(client: AsyncClient):
+    base_payload = {
+        "country": "Luxembourg",
+        "portfolio_value": 1000000,
+        "inflation_rate_pct": 2,
+        "shares_return_pct": 7,
+        "bonds_return_pct": 4,
+        "dividend_yield_pct": 4,
+        "salary_eur": 250000,
+        "belgium_wealth_tax_pct": 1,
+        "shares_allocation_pct": 70,
+    }
+
+    one_person_resp = await client.post(
+        "/api/wealth/tax-calculator/compute",
+        json={**base_payload, "num_persons": 1},
+    )
+    assert one_person_resp.status_code == 200
+    one_person_result = one_person_resp.json()["single_result"]
+
+    two_person_resp = await client.post(
+        "/api/wealth/tax-calculator/compute",
+        json={**base_payload, "num_persons": 2},
+    )
+    assert two_person_resp.status_code == 200
+    two_person_result = two_person_resp.json()["single_result"]
+
+    assert two_person_result["dividend_tax"] < one_person_result["dividend_tax"]
+    assert two_person_result["bond_tax"] < one_person_result["bond_tax"]
 
 
 @pytest.mark.anyio

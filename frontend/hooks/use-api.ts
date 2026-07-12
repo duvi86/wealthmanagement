@@ -53,6 +53,7 @@ export type WealthTaxDefaults = {
   sharesReturnPct: number;
   bondsReturnPct: number;
   dividendYieldPct: number;
+  salaryEur: number;
   numPersons: number;
   belgiumWealthTaxPct: number;
   sharesAllocationPct: number;
@@ -71,6 +72,7 @@ export type WealthTaxCalculatorInput = {
   sharesReturnPct: number;
   bondsReturnPct: number;
   dividendYieldPct: number;
+  salaryEur: number;
   numPersons: number;
   belgiumWealthTaxPct: number;
   sharesAllocationPct: number;

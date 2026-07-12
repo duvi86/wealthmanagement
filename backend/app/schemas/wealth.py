@@ -388,6 +388,7 @@ class TaxDefaults(BaseModel):
     shares_return_pct: float
     bonds_return_pct: float
     dividend_yield_pct: float
+    salary_eur: float
     num_persons: int
     belgium_wealth_tax_pct: float
     shares_allocation_pct: float
@@ -406,6 +407,7 @@ class TaxCalculatorInput(BaseModel):
     shares_return_pct: float
     bonds_return_pct: float
     dividend_yield_pct: float
+    salary_eur: float = 0.0
     num_persons: int
     belgium_wealth_tax_pct: float
     shares_allocation_pct: float

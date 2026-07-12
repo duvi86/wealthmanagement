@@ -26,11 +26,11 @@ TAX_COUNTRY_OPTIONS = [
 ]
 
 TAX_SCENARIOS = [
-    {"portfolio": 500000, "shares": 350000, "bonds": 150000, "inflation_rate": 0.02},
-    {"portfolio": 1000000, "shares": 700000, "bonds": 300000, "inflation_rate": 0.02},
-    {"portfolio": 1800000, "shares": 1260000, "bonds": 540000, "inflation_rate": 0.02},
-    {"portfolio": 3000000, "shares": 2100000, "bonds": 900000, "inflation_rate": 0.02},
-    {"portfolio": 10000000, "shares": 7000000, "bonds": 3000000, "inflation_rate": 0.02},
+    {"portfolio": 500000, "shares": 300000, "bonds": 200000, "inflation_rate": 0.02},
+    {"portfolio": 1000000, "shares": 600000, "bonds": 400000, "inflation_rate": 0.02},
+    {"portfolio": 1800000, "shares": 1080000, "bonds": 720000, "inflation_rate": 0.02},
+    {"portfolio": 3000000, "shares": 1800000, "bonds": 1200000, "inflation_rate": 0.02},
+    {"portfolio": 10000000, "shares": 6000000, "bonds": 4000000, "inflation_rate": 0.02},
 ]
 
 TAX_DEFAULTS = {
@@ -40,6 +40,7 @@ TAX_DEFAULTS = {
     "shares_return_pct": 7,
     "bonds_return_pct": 4,
     "dividend_yield_pct": 4,
+    "salary_eur": 0,
     "num_persons": 1,
     "belgium_wealth_tax_pct": 1,
     "shares_allocation_pct": 70,
@@ -59,6 +60,7 @@ class TaxInputs:
     shares_return: float
     bonds_return: float
     dividend_yield: float
+    salary_eur: float
     num_persons: int
     belgium_wealth_tax_rate: float
 
@@ -235,6 +237,26 @@ def _calculate_switzerland(data: TaxInputs) -> dict:
 
 def _calculate_luxembourg(data: TaxInputs) -> dict:
     base = _compute_base_revenue(data)
+    person_count = max(1, data.num_persons)
+    total_yield_income = base.share_dividends + base.bond_revenue
+    total_deduction = 1500 * person_count
+    taxable_yield_income = max(0.0, total_yield_income - total_deduction)
+
+    per_person_salary = max(0.0, data.salary_eur) / person_count
+    per_person_taxable_yield = taxable_yield_income / person_count
+
+    total_income_tax_per_person = _calculate_luxembourg_income_tax(per_person_salary + per_person_taxable_yield)
+    salary_only_tax_per_person = _calculate_luxembourg_income_tax(per_person_salary)
+    incremental_investment_tax_per_person = max(0.0, total_income_tax_per_person - salary_only_tax_per_person)
+    total_investment_tax = incremental_investment_tax_per_person * person_count
+
+    dividend_tax = 0.0
+    bond_tax = 0.0
+    if total_yield_income > 0:
+        tax_ratio = total_investment_tax / total_yield_income
+        dividend_tax = base.share_dividends * tax_ratio
+        bond_tax = base.bond_revenue * tax_ratio
+
     return _finalize_result(
         data,
         base,
@@ -242,11 +264,51 @@ def _calculate_luxembourg(data: TaxInputs) -> dict:
             "capital_gains_exemption": 0,
             "taxable_capital_gains": 0,
             "capital_gains_tax": 0,
-            "dividend_tax": base.share_dividends * 0.21,
-            "bond_tax": base.bond_revenue * 0.21,
+            "dividend_tax": dividend_tax,
+            "bond_tax": bond_tax,
             "wealth_tax": 0,
         },
     )
+
+
+def _calculate_luxembourg_income_tax(total_income: float) -> float:
+    brackets = [
+        (0.0, 13230.0, 0.0),
+        (13230.0, 15435.0, 0.08),
+        (15435.0, 17640.0, 0.09),
+        (17640.0, 19845.0, 0.10),
+        (19845.0, 22050.0, 0.11),
+        (22050.0, 24255.0, 0.12),
+        (24255.0, 26550.0, 0.14),
+        (26550.0, 28845.0, 0.16),
+        (28845.0, 31140.0, 0.18),
+        (31140.0, 33435.0, 0.20),
+        (33435.0, 35730.0, 0.22),
+        (35730.0, 38025.0, 0.24),
+        (38025.0, 40320.0, 0.26),
+        (40320.0, 42615.0, 0.28),
+        (42615.0, 44910.0, 0.30),
+        (44910.0, 47205.0, 0.32),
+        (47205.0, 49500.0, 0.34),
+        (49500.0, 51795.0, 0.36),
+        (51795.0, 54090.0, 0.38),
+        (54090.0, 117450.0, 0.39),
+        (117450.0, 176160.0, 0.40),
+        (176160.0, 234870.0, 0.41),
+        (234870.0, float("inf"), 0.42),
+    ]
+
+    taxable_income = max(0.0, total_income)
+    base_tax = 0.0
+    for lower, upper, rate in brackets:
+        if taxable_income <= lower:
+            break
+        bracket_amount = min(taxable_income, upper) - lower
+        if bracket_amount > 0:
+            base_tax += bracket_amount * rate
+
+    # 7% solidarity surcharge on income tax
+    return base_tax * 1.07
 
 
 def _calculate_italy(data: TaxInputs) -> dict:
@@ -476,6 +538,7 @@ def calculate_tax(country: TaxCountry, form: TaxCalculatorInput) -> dict:
         shares_return=form.shares_return_pct / 100,
         bonds_return=form.bonds_return_pct / 100,
         dividend_yield=form.dividend_yield_pct / 100,
+        salary_eur=form.salary_eur,
         num_persons=form.num_persons,
         belgium_wealth_tax_rate=form.belgium_wealth_tax_pct / 100,
     )

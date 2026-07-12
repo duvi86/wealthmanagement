@@ -34,11 +34,11 @@ export const TAX_COUNTRY_OPTIONS: Array<{ label: string; value: TaxCountry }> = 
 ];
 
 export const TAX_SCENARIOS = [
-  { portfolio: 500000, shares: 350000, bonds: 150000, inflationRate: 0.02 },
-  { portfolio: 1000000, shares: 700000, bonds: 300000, inflationRate: 0.02 },
-  { portfolio: 1800000, shares: 1260000, bonds: 540000, inflationRate: 0.02 },
-  { portfolio: 3000000, shares: 2100000, bonds: 900000, inflationRate: 0.02 },
-  { portfolio: 10000000, shares: 7000000, bonds: 3000000, inflationRate: 0.02 },
+  { portfolio: 500000, shares: 300000, bonds: 200000, inflationRate: 0.02 },
+  { portfolio: 1000000, shares: 600000, bonds: 400000, inflationRate: 0.02 },
+  { portfolio: 1800000, shares: 1080000, bonds: 720000, inflationRate: 0.02 },
+  { portfolio: 3000000, shares: 1800000, bonds: 1200000, inflationRate: 0.02 },
+  { portfolio: 10000000, shares: 6000000, bonds: 4000000, inflationRate: 0.02 },
 ] as const;
 
 export const TAX_DEFAULTS = {
@@ -48,6 +48,7 @@ export const TAX_DEFAULTS = {
   sharesReturnPct: 7,
   bondsReturnPct: 4,
   dividendYieldPct: 4,
+  salaryEur: 0,
   numPersons: 1,
   belgiumWealthTaxPct: 1,
   sharesAllocationPct: 70,
@@ -90,6 +91,7 @@ type TaxInputs = {
   sharesReturn: number;
   bondsReturn: number;
   dividendYield: number;
+  salaryEur: number;
   numPersons: number;
   belgiumWealthTaxRate: number;
 };
@@ -257,38 +259,36 @@ function calculateSwitzerland(input: TaxInputs): TaxCalculationResult {
 
 function calculateLuxembourg(input: TaxInputs): TaxCalculationResult {
   const base = computeBaseRevenue(input);
-  const totalInvestmentIncome = base.shareCapitalGains + base.shareDividends + base.bondRevenue;
-  
-  // €1,500 annual deduction per person
-  const totalDeduction = 1500 * input.numPersons;
-  const taxableIncome = Math.max(0, totalInvestmentIncome - totalDeduction);
-  
-  // Apply progressive tax brackets
-  const perPersonIncome = taxableIncome / input.numPersons;
-  const taxPerPerson = calculateLuxembourgIncomeTax(perPersonIncome);
-  const totalInvestmentTax = taxPerPerson * input.numPersons;
-  
-  // Distribute tax proportionally among capital gains, dividends, and bonds
-  let capitalGainsTax = 0;
+  const personCount = Math.max(1, input.numPersons);
+  const totalYieldIncome = base.shareDividends + base.bondRevenue;
+
+  // €1,500 annual deduction per person applies to dividend and bond income.
+  const totalDeduction = 1500 * personCount;
+  const taxableYieldIncome = Math.max(0, totalYieldIncome - totalDeduction);
+
+  const perPersonSalary = Math.max(0, input.salaryEur) / personCount;
+  const perPersonTaxableYield = taxableYieldIncome / personCount;
+  const fullTaxPerPerson = calculateLuxembourgIncomeTax(perPersonSalary + perPersonTaxableYield);
+  const salaryOnlyTaxPerPerson = calculateLuxembourgIncomeTax(perPersonSalary);
+  const investmentTaxPerPerson = Math.max(0, fullTaxPerPerson - salaryOnlyTaxPerPerson);
+  const totalInvestmentTax = investmentTaxPerPerson * personCount;
+
+  // Distribute only the investment-linked marginal tax to dividends and bonds.
   let dividendTax = 0;
   let bondTax = 0;
-  if (totalInvestmentIncome > 0) {
-    const taxRatio = totalInvestmentTax / totalInvestmentIncome;
-    capitalGainsTax = base.shareCapitalGains * taxRatio;
+  if (totalYieldIncome > 0) {
+    const taxRatio = totalInvestmentTax / totalYieldIncome;
     dividendTax = base.shareDividends * taxRatio;
     bondTax = base.bondRevenue * taxRatio;
   }
-  
-  // 1.4% dependency contribution on portfolio income alone
-  const dependencyContribution = totalInvestmentIncome * 0.014;
-  
+
   return finalizeResult(input, base, {
-    capitalGainsExemption: totalDeduction,
-    taxableCapitalGains: taxableIncome,
-    capitalGainsTax,
+    capitalGainsExemption: 0,
+    taxableCapitalGains: 0,
+    capitalGainsTax: 0,
     dividendTax,
     bondTax,
-    wealthTax: dependencyContribution,
+    wealthTax: 0,
   });
 }
 
@@ -563,6 +563,7 @@ export type TaxCalculatorFormState = {
   sharesReturnPct: number;
   bondsReturnPct: number;
   dividendYieldPct: number;
+  salaryEur: number;
   numPersons: number;
   belgiumWealthTaxPct: number;
   sharesAllocationPct: number;
@@ -580,6 +581,7 @@ export function calculateTax(country: TaxCountry, state: TaxCalculatorFormState)
     sharesReturn: state.sharesReturnPct / 100,
     bondsReturn: state.bondsReturnPct / 100,
     dividendYield: state.dividendYieldPct / 100,
+    salaryEur: state.salaryEur,
     numPersons: state.numPersons,
     belgiumWealthTaxRate: state.belgiumWealthTaxPct / 100,
   };

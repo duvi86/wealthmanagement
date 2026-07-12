@@ -92,6 +92,7 @@ function makeDefaults(): TaxCalculatorFormState {
     sharesReturnPct: 7,
     bondsReturnPct: 4,
     dividendYieldPct: 4,
+    salaryEur: 0,
     numPersons: 1,
     belgiumWealthTaxPct: 1,
     sharesAllocationPct: 70,
@@ -116,6 +117,7 @@ export default function TaxCalculatorPage() {
       sharesReturnPct: taxConfig.defaults.sharesReturnPct,
       bondsReturnPct: taxConfig.defaults.bondsReturnPct,
       dividendYieldPct: taxConfig.defaults.dividendYieldPct,
+      salaryEur: taxConfig.defaults.salaryEur ?? 0,
       numPersons: taxConfig.defaults.numPersons,
       belgiumWealthTaxPct: taxConfig.defaults.belgiumWealthTaxPct,
       sharesAllocationPct: taxConfig.defaults.sharesAllocationPct,
@@ -280,6 +282,14 @@ export default function TaxCalculatorPage() {
                 label="Dividend Yield (%)"
                 value={form.dividendYieldPct}
                 onChange={(e) => setForm((prev) => ({ ...prev, dividendYieldPct: Number(e.target.value) }))}
+              />
+              <FormInput
+                type="number"
+                step="1000"
+                min={0}
+                label="Annual Salary (EUR)"
+                value={form.salaryEur}
+                onChange={(e) => setForm((prev) => ({ ...prev, salaryEur: Number(e.target.value) }))}
               />
               <FormInput
                 type="number"
@@ -471,6 +481,9 @@ export default function TaxCalculatorPage() {
               <div className="card-header">
                 <h3 style={{ margin: 0 }}>{`Scenario Comparison - ${form.country}`}</h3>
               </div>
+              <p className="wealth-muted" style={{ marginTop: 0 }}>
+                Scenario comparison uses a fixed allocation: Bonds 40% / Shares 60%.
+              </p>
               {scenarioComparison.length === 0 && !computeTax.isPending ? (
                 <p className="wealth-muted" style={{ margin: 0 }}>No scenario data available.</p>
               ) : null}
