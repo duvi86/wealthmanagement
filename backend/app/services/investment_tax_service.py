@@ -221,6 +221,9 @@ def _calculate_uk(data: TaxInputs) -> dict:
 
 def _calculate_switzerland(data: TaxInputs) -> dict:
     base = _compute_base_revenue(data)
+    person_count = max(1, data.num_persons)
+    per_person_wealth = data.portfolio_value / person_count
+    wealth_tax = _calculate_basel_stadt_wealth_tax(per_person_wealth) * person_count
     return _finalize_result(
         data,
         base,
@@ -230,9 +233,24 @@ def _calculate_switzerland(data: TaxInputs) -> dict:
             "capital_gains_tax": 0,
             "dividend_tax": base.share_dividends * 0.35,
             "bond_tax": base.bond_revenue * 0.35,
-            "wealth_tax": data.portfolio_value * 0.0044,
+            "wealth_tax": wealth_tax,
         },
     )
+
+
+def _calculate_basel_stadt_wealth_tax(wealth: float) -> float:
+    brackets = [
+        (0.0, 250000.0, 0.0045),
+        (250000.0, 750000.0, 0.0065),
+        (750000.0, 2500000.0, 0.0079),
+        (2500000.0, float("inf"), 0.0079),
+    ]
+
+    taxable_wealth = max(0.0, wealth)
+    for _, upper, rate in brackets:
+        if taxable_wealth <= upper:
+            return taxable_wealth * rate
+    return taxable_wealth * 0.0079
 
 
 def _calculate_luxembourg(data: TaxInputs) -> dict:
@@ -400,17 +418,16 @@ def _calculate_uae(data: TaxInputs) -> dict:
 
 def _calculate_ireland(data: TaxInputs) -> dict:
     base = _compute_base_revenue(data)
-    total_exemption = 1500 * data.num_persons
-    taxable_capital_gains = max(0.0, base.capital_gains - total_exemption)
+    total_investment_income = base.share_capital_gains + base.share_dividends + base.bond_revenue
     return _finalize_result(
         data,
         base,
         {
-            "capital_gains_exemption": total_exemption,
-            "taxable_capital_gains": taxable_capital_gains,
-            "capital_gains_tax": taxable_capital_gains * 0.41,
-            "dividend_tax": base.share_dividends * 0.52,
-            "bond_tax": base.bond_revenue * 0.52,
+            "capital_gains_exemption": 0,
+            "taxable_capital_gains": total_investment_income,
+            "capital_gains_tax": base.share_capital_gains * 0.41,
+            "dividend_tax": base.share_dividends * 0.41,
+            "bond_tax": base.bond_revenue * 0.41,
             "wealth_tax": 0,
         },
     )

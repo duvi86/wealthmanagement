@@ -446,6 +446,32 @@ async def test_tax_calculator_compute(client: AsyncClient):
 
 
 @pytest.mark.anyio
+async def test_tax_calculator_ireland_flat_41_percent_for_all_investment_income(client: AsyncClient):
+    payload = {
+        "country": "Ireland",
+        "portfolio_value": 1000000,
+        "inflation_rate_pct": 2,
+        "shares_return_pct": 7,
+        "bonds_return_pct": 4,
+        "dividend_yield_pct": 4,
+        "salary_eur": 0,
+        "num_persons": 1,
+        "belgium_wealth_tax_pct": 1,
+        "shares_allocation_pct": 70,
+    }
+
+    resp = await client.post("/api/wealth/tax-calculator/compute", json=payload)
+    assert resp.status_code == 200
+    result = resp.json()["single_result"]
+
+    assert result["capital_gains_tax"] == pytest.approx(result["capital_gains"] * 0.41)
+    assert result["dividend_tax"] == pytest.approx(result["share_dividends"] * 0.41)
+    assert result["bond_tax"] == pytest.approx(result["bond_revenue"] * 0.41)
+    assert result["wealth_tax"] == pytest.approx(0)
+    assert result["total_tax"] == pytest.approx(result["revenue"] * 0.41)
+
+
+@pytest.mark.anyio
 async def test_tax_calculator_belgium_account_tax_threshold_per_person(client: AsyncClient):
     base_payload = {
         "country": "Belgium",
@@ -565,6 +591,29 @@ async def test_tax_calculator_luxembourg_salary_split_by_person_count(client: As
 
     assert two_person_result["dividend_tax"] < one_person_result["dividend_tax"]
     assert two_person_result["bond_tax"] < one_person_result["bond_tax"]
+
+
+@pytest.mark.anyio
+async def test_tax_calculator_switzerland_uses_basel_stadt_wealth_tax_table(client: AsyncClient):
+    payload = {
+        "country": "Switzerland",
+        "portfolio_value": 1000000,
+        "inflation_rate_pct": 2,
+        "shares_return_pct": 7,
+        "bonds_return_pct": 4,
+        "dividend_yield_pct": 4,
+        "salary_eur": 0,
+        "num_persons": 1,
+        "belgium_wealth_tax_pct": 1,
+        "shares_allocation_pct": 46,
+    }
+
+    resp = await client.post("/api/wealth/tax-calculator/compute", json=payload)
+    assert resp.status_code == 200
+    result = resp.json()["single_result"]
+
+    # 1,000,000 per person falls in the 0.79% band.
+    assert result["wealth_tax"] == pytest.approx(7900)
 
 
 @pytest.mark.anyio
