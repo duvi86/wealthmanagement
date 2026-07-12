@@ -181,9 +181,12 @@ function calculateBelgium(input: TaxInputs): TaxCalculationResult {
   const capitalGainsTax = taxableCapitalGains * 0.1;
   const dividendTax = base.shareDividends * 0.3;
   const bondTax = base.bondRevenue * 0.3;
-  let wealthTax = input.portfolioValue * input.belgiumWealthTaxRate;
-  if (input.portfolioValue > 2000000) {
-    wealthTax += input.portfolioValue * 0.0015;
+  
+  // Account tax: 0.15% on portfolio value per person only when > €1M per person
+  let wealthTax = 0;
+  const perPersonPortfolio = input.portfolioValue / input.numPersons;
+  if (perPersonPortfolio > 1000000) {
+    wealthTax = (perPersonPortfolio * 0.0015) * input.numPersons;
   }
 
   return finalizeResult(input, base, {
@@ -236,25 +239,56 @@ function calculateUk(input: TaxInputs): TaxCalculationResult {
 
 function calculateSwitzerland(input: TaxInputs): TaxCalculationResult {
   const base = computeBaseRevenue(input);
+  
+  // Basel-Stadt progressive wealth tax per person
+  const perPersonWealth = input.portfolioValue / input.numPersons;
+  const wealthTaxPerPerson = calculateBaselStadtWealthTax(perPersonWealth);
+  const totalWealthTax = wealthTaxPerPerson * input.numPersons;
+  
   return finalizeResult(input, base, {
     capitalGainsExemption: 0,
     taxableCapitalGains: 0,
     capitalGainsTax: 0,
     dividendTax: base.shareDividends * 0.35,
     bondTax: base.bondRevenue * 0.35,
-    wealthTax: input.portfolioValue * 0.0044,
+    wealthTax: totalWealthTax,
   });
 }
 
 function calculateLuxembourg(input: TaxInputs): TaxCalculationResult {
   const base = computeBaseRevenue(input);
+  const totalInvestmentIncome = base.shareCapitalGains + base.shareDividends + base.bondRevenue;
+  
+  // €1,500 annual deduction per person
+  const totalDeduction = 1500 * input.numPersons;
+  const taxableIncome = Math.max(0, totalInvestmentIncome - totalDeduction);
+  
+  // Apply progressive tax brackets
+  const perPersonIncome = taxableIncome / input.numPersons;
+  const taxPerPerson = calculateLuxembourgIncomeTax(perPersonIncome);
+  const totalInvestmentTax = taxPerPerson * input.numPersons;
+  
+  // Distribute tax proportionally among capital gains, dividends, and bonds
+  let capitalGainsTax = 0;
+  let dividendTax = 0;
+  let bondTax = 0;
+  if (totalInvestmentIncome > 0) {
+    const taxRatio = totalInvestmentTax / totalInvestmentIncome;
+    capitalGainsTax = base.shareCapitalGains * taxRatio;
+    dividendTax = base.shareDividends * taxRatio;
+    bondTax = base.bondRevenue * taxRatio;
+  }
+  
+  // 1.4% dependency contribution on portfolio income alone
+  const dependencyContribution = totalInvestmentIncome * 0.014;
+  
   return finalizeResult(input, base, {
-    capitalGainsExemption: 0,
-    taxableCapitalGains: 0,
-    capitalGainsTax: 0,
-    dividendTax: base.shareDividends * 0.21,
-    bondTax: base.bondRevenue * 0.21,
-    wealthTax: 0,
+    capitalGainsExemption: totalDeduction,
+    taxableCapitalGains: taxableIncome,
+    capitalGainsTax,
+    dividendTax,
+    bondTax,
+    wealthTax: dependencyContribution,
   });
 }
 
@@ -320,28 +354,39 @@ function calculateNewZealand(input: TaxInputs): TaxCalculationResult {
 
 function calculateUae(input: TaxInputs): TaxCalculationResult {
   const base = computeBaseRevenue(input);
-  const totalYieldIncome = base.shareDividends + base.bondRevenue;
-  const aboveThreshold = totalYieldIncome > 88000;
+  // Personal investment income is exempt from taxation in UAE
   return finalizeResult(input, base, {
     capitalGainsExemption: 0,
     taxableCapitalGains: 0,
     capitalGainsTax: 0,
-    dividendTax: aboveThreshold ? base.shareDividends * 0.09 : 0,
-    bondTax: aboveThreshold ? base.bondRevenue * 0.09 : 0,
+    dividendTax: 0,
+    bondTax: 0,
     wealthTax: 0,
   });
 }
 
 function calculateIreland(input: TaxInputs): TaxCalculationResult {
   const base = computeBaseRevenue(input);
-  const totalExemption = 1500 * input.numPersons;
-  const taxableCapitalGains = Math.max(0, base.capitalGains - totalExemption);
+  const totalInvestmentIncome = base.shareCapitalGains + base.shareDividends + base.bondRevenue;
+  // All investment income taxed at 41% flat (ETF exit tax treatment)
+  const totalInvestmentTax = totalInvestmentIncome * 0.41;
+  
+  let capitalGainsTax = 0;
+  let dividendTax = 0;
+  let bondTax = 0;
+  if (totalInvestmentIncome > 0) {
+    const taxRatio = 0.41; // Flat 41% on all investment income
+    capitalGainsTax = base.shareCapitalGains * taxRatio;
+    dividendTax = base.shareDividends * taxRatio;
+    bondTax = base.bondRevenue * taxRatio;
+  }
+  
   return finalizeResult(input, base, {
-    capitalGainsExemption: totalExemption,
-    taxableCapitalGains,
-    capitalGainsTax: taxableCapitalGains * 0.41,
-    dividendTax: base.shareDividends * 0.52,
-    bondTax: base.bondRevenue * 0.52,
+    capitalGainsExemption: 0,
+    taxableCapitalGains: totalInvestmentIncome,
+    capitalGainsTax,
+    dividendTax,
+    bondTax,
     wealthTax: 0,
   });
 }
@@ -371,6 +416,64 @@ function calculateNetherlands(input: TaxInputs): TaxCalculationResult {
     bondTax,
     wealthTax: 0,
   });
+}
+
+function calculateLuxembourgIncomeTax(totalIncome: number): number {
+  const brackets = [
+    [0, 13230, 0.0],
+    [13230, 15435, 0.08],
+    [15435, 17640, 0.09],
+    [17640, 19845, 0.10],
+    [19845, 22050, 0.11],
+    [22050, 24255, 0.12],
+    [24255, 26550, 0.14],
+    [26550, 28845, 0.16],
+    [28845, 31140, 0.18],
+    [31140, 33435, 0.20],
+    [33435, 35730, 0.22],
+    [35730, 38025, 0.24],
+    [38025, 40320, 0.26],
+    [40320, 42615, 0.28],
+    [42615, 44910, 0.30],
+    [44910, 47205, 0.32],
+    [47205, 49500, 0.34],
+    [49500, 51795, 0.36],
+    [51795, 54090, 0.38],
+    [54090, 117450, 0.39],
+    [117450, 176160, 0.40],
+    [176160, 234870, 0.41],
+    [234870, Number.POSITIVE_INFINITY, 0.42],
+  ] as const;
+
+  let tax = 0;
+  let remaining = totalIncome;
+
+  for (const [lower, upper, rate] of brackets) {
+    if (remaining <= 0) break;
+    const bracketAmount = Math.min(remaining, upper - lower);
+    tax += bracketAmount * rate;
+    remaining -= bracketAmount;
+  }
+
+  // Apply 7% solidarity surcharge on the income tax
+  const totalTax = tax * 1.07;
+  return totalTax;
+}
+
+function calculateBaselStadtWealthTax(wealth: number): number {
+  const brackets = [
+    [0, 250000, 0.0045],
+    [250000, 750000, 0.0065],
+    [750000, 2500000, 0.0079],
+    [2500000, Number.POSITIVE_INFINITY, 0.0079],
+  ] as const;
+
+  for (const [lower, upper, rate] of brackets) {
+    if (wealth <= upper) {
+      return wealth * rate;
+    }
+  }
+  return wealth * 0.0079;
 }
 
 function calculateSpainWealthTax(taxableWealth: number): number {
@@ -404,7 +507,7 @@ function calculateSpainIncomeTax(totalInvestmentIncome: number, numPersons: numb
     [6000, 50000, 0.21],
     [50000, 200000, 0.23],
     [200000, 300000, 0.27],
-    [300000, Number.POSITIVE_INFINITY, 0.27],
+    [300000, Number.POSITIVE_INFINITY, 0.30],
   ] as const;
 
   const perPersonIncome = totalInvestmentIncome / numPersons;
