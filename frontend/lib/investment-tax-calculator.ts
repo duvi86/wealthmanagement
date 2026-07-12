@@ -265,9 +265,10 @@ function calculateLuxembourg(input: TaxInputs): TaxCalculationResult {
   // €1,500 annual deduction per person applies to dividend and bond income.
   const totalDeduction = 1500 * personCount;
   const taxableYieldIncome = Math.max(0, totalYieldIncome - totalDeduction);
+  const taxableYieldForBrackets = taxableYieldIncome * 0.5;
 
   const perPersonSalary = Math.max(0, input.salaryEur) / personCount;
-  const perPersonTaxableYield = taxableYieldIncome / personCount;
+  const perPersonTaxableYield = taxableYieldForBrackets / personCount;
   const fullTaxPerPerson = calculateLuxembourgIncomeTax(perPersonSalary + perPersonTaxableYield);
   const salaryOnlyTaxPerPerson = calculateLuxembourgIncomeTax(perPersonSalary);
   const investmentTaxPerPerson = Math.max(0, fullTaxPerPerson - salaryOnlyTaxPerPerson);

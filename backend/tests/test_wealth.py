@@ -520,6 +520,8 @@ async def test_tax_calculator_luxembourg_salary_increases_dividend_bond_tax(clie
     )
     assert low_salary_resp.status_code == 200
     low_salary_result = low_salary_resp.json()["single_result"]
+    assert low_salary_result["bond_tax"] == pytest.approx(172.008, rel=1e-6)
+    assert low_salary_result["dividend_tax"] == pytest.approx(401.352, rel=1e-6)
 
     high_salary_resp = await client.post(
         "/api/wealth/tax-calculator/compute",

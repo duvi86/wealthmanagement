@@ -23,6 +23,8 @@ describe("Luxembourg salary-aware dividend and bond taxation", () => {
     const lowSalary = calculateTax("Luxembourg", makeLuxembourgState({ salaryEur: 0 }));
     const highSalary = calculateTax("Luxembourg", makeLuxembourgState({ salaryEur: 250_000 }));
 
+    expect(lowSalary.dividend_tax).toBeCloseTo(401.352, 3);
+    expect(lowSalary.bond_tax).toBeCloseTo(172.008, 3);
     expect(highSalary.capital_gains_tax).toBe(0);
     expect(highSalary.dividend_tax).toBeGreaterThan(lowSalary.dividend_tax);
     expect(highSalary.bond_tax).toBeGreaterThan(lowSalary.bond_tax);

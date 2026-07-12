@@ -241,9 +241,10 @@ def _calculate_luxembourg(data: TaxInputs) -> dict:
     total_yield_income = base.share_dividends + base.bond_revenue
     total_deduction = 1500 * person_count
     taxable_yield_income = max(0.0, total_yield_income - total_deduction)
+    taxable_yield_for_brackets = taxable_yield_income * 0.5
 
     per_person_salary = max(0.0, data.salary_eur) / person_count
-    per_person_taxable_yield = taxable_yield_income / person_count
+    per_person_taxable_yield = taxable_yield_for_brackets / person_count
 
     total_income_tax_per_person = _calculate_luxembourg_income_tax(per_person_salary + per_person_taxable_yield)
     salary_only_tax_per_person = _calculate_luxembourg_income_tax(per_person_salary)
