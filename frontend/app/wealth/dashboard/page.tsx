@@ -737,13 +737,13 @@ export default function WealthDashboardPage() {
                         style={{
                           display: "grid",
                           gridTemplateColumns: `minmax(104px, 1.15fr) repeat(${jointExposure.columns.length}, minmax(0, 1fr))`,
-                          gap: 2,
+                          gap: 1,
                           alignItems: "stretch",
                         }}
                       >
                         <div
                           style={{
-                            padding: "3px 5px",
+                            padding: "2px 4px",
                             borderRadius: 6,
                             background: "var(--color-surface-secondary)",
                             fontSize: 8,
@@ -756,12 +756,12 @@ export default function WealthDashboardPage() {
                           <div
                             key={column}
                             style={{
-                              padding: "3px 2px",
+                              padding: "2px 1px",
                               borderRadius: 6,
                               background: "var(--color-surface-secondary)",
                               fontSize: 8,
                               textAlign: "center",
-                              lineHeight: 1.2,
+                              lineHeight: 1.1,
                             }}
                           >
                             {column}
@@ -772,7 +772,7 @@ export default function WealthDashboardPage() {
                           <Fragment key={row.assetClass}>
                             <div
                               style={{
-                                padding: "3px 4px",
+                                padding: "2px 3px",
                                 borderRadius: 6,
                                 border: "1px solid var(--color-stroke-primary)",
                                 fontSize: 9,
@@ -780,7 +780,7 @@ export default function WealthDashboardPage() {
                                 display: "flex",
                                 flexDirection: "column",
                                 justifyContent: "center",
-                                gap: 1,
+                                gap: 0,
                               }}
                               title={`${formatMoney(row.rowTotalEur, "EUR")} (${row.rowPct.toFixed(1)}% of tracked exposure)`}
                             >
@@ -825,8 +825,8 @@ export default function WealthDashboardPage() {
                                     display: "flex",
                                     alignItems: "center",
                                     justifyContent: "center",
-                                    minHeight: 24,
-                                    padding: "2px 1px",
+                                    minHeight: 20,
+                                    padding: "1px 1px",
                                     lineHeight: 1.1,
                                   }}
                                   title={`${row.assetClass} / ${cell.column}\nAmount: ${formatMoney(cell.amountEur, "EUR")}\nActual: ${cell.pct.toFixed(1)}%\nExpected: ${cell.expectedPct.toFixed(1)}%\nDeviation: ${cell.deviationPct >= 0 ? "+" : ""}${cell.deviationPct.toFixed(1)}%\nTop 5:\n${cell.topContributors.length > 0
@@ -846,7 +846,7 @@ export default function WealthDashboardPage() {
 
                         <div
                           style={{
-                            padding: "3px 4px",
+                            padding: "2px 3px",
                             borderRadius: 6,
                             border: "1px solid var(--color-stroke-primary)",
                             fontSize: 9,
@@ -854,7 +854,7 @@ export default function WealthDashboardPage() {
                             display: "flex",
                             flexDirection: "column",
                             justifyContent: "center",
-                            gap: 1,
+                            gap: 0,
                           }}
                           title="Column total across all asset classes"
                         >
@@ -875,8 +875,8 @@ export default function WealthDashboardPage() {
                               flexDirection: "column",
                               alignItems: "center",
                               justifyContent: "center",
-                              minHeight: 24,
-                              padding: "2px 1px",
+                              minHeight: 20,
+                              padding: "1px 1px",
                               lineHeight: 1.1,
                               gap: 1,
                             }}
