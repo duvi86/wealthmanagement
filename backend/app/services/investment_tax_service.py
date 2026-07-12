@@ -45,6 +45,10 @@ TAX_DEFAULTS = {
     "shares_allocation_pct": 70,
 }
 
+BELGIUM_CAPITAL_GAINS_EXEMPTION_PER_PERSON = 10000
+BELGIUM_ACCOUNT_TAX_THRESHOLD_PER_PERSON = 1000000
+BELGIUM_ACCOUNT_TAX_RATE = 0.0015
+
 
 @dataclass
 class TaxInputs:
@@ -139,14 +143,15 @@ def _finalize_result(data: TaxInputs, base: BaseRevenue, taxes: dict[str, float]
 
 def _calculate_belgium(data: TaxInputs) -> dict:
     base = _compute_base_revenue(data)
-    total_exemption = 10000 * data.num_persons
+    total_exemption = BELGIUM_CAPITAL_GAINS_EXEMPTION_PER_PERSON * data.num_persons
     taxable_capital_gains = max(0.0, base.capital_gains - total_exemption)
     capital_gains_tax = taxable_capital_gains * 0.1
     dividend_tax = base.share_dividends * 0.3
     bond_tax = base.bond_revenue * 0.3
     wealth_tax = data.portfolio_value * data.belgium_wealth_tax_rate
-    if data.portfolio_value > 2000000:
-        wealth_tax += data.portfolio_value * 0.0015
+    per_person_portfolio = data.portfolio_value / data.num_persons if data.num_persons > 0 else data.portfolio_value
+    if per_person_portfolio > BELGIUM_ACCOUNT_TAX_THRESHOLD_PER_PERSON:
+        wealth_tax += data.portfolio_value * BELGIUM_ACCOUNT_TAX_RATE
 
     return _finalize_result(
         data,

@@ -445,6 +445,61 @@ async def test_tax_calculator_compute(client: AsyncClient):
 
 
 @pytest.mark.anyio
+async def test_tax_calculator_belgium_account_tax_threshold_per_person(client: AsyncClient):
+    base_payload = {
+        "country": "Belgium",
+        "inflation_rate_pct": 2,
+        "shares_return_pct": 7,
+        "bonds_return_pct": 4,
+        "dividend_yield_pct": 4,
+        "num_persons": 1,
+        "belgium_wealth_tax_pct": 1,
+        "shares_allocation_pct": 70,
+    }
+
+    at_threshold_resp = await client.post(
+        "/api/wealth/tax-calculator/compute",
+        json={**base_payload, "portfolio_value": 1000000},
+    )
+    assert at_threshold_resp.status_code == 200
+    at_threshold = at_threshold_resp.json()["single_result"]
+    assert at_threshold["wealth_tax"] == pytest.approx(1000000 * 0.01)
+
+    above_threshold_resp = await client.post(
+        "/api/wealth/tax-calculator/compute",
+        json={**base_payload, "portfolio_value": 1000001},
+    )
+    assert above_threshold_resp.status_code == 200
+    above_threshold = above_threshold_resp.json()["single_result"]
+    assert above_threshold["wealth_tax"] == pytest.approx(1000001 * (0.01 + 0.0015))
+
+
+@pytest.mark.anyio
+async def test_tax_calculator_belgium_capital_gains_exemption_per_person(client: AsyncClient):
+    payload = {
+        "country": "Belgium",
+        "portfolio_value": 500000,
+        "inflation_rate_pct": 2,
+        "shares_return_pct": 15,
+        "bonds_return_pct": 4,
+        "dividend_yield_pct": 5,
+        "num_persons": 2,
+        "belgium_wealth_tax_pct": 1,
+        "shares_allocation_pct": 100,
+    }
+
+    resp = await client.post("/api/wealth/tax-calculator/compute", json=payload)
+    assert resp.status_code == 200
+    result = resp.json()["single_result"]
+
+    # Equity capital gains = 500k * (15% - 5%) = 50k
+    assert result["capital_gains"] == pytest.approx(50000)
+    assert result["capital_gains_exemption"] == pytest.approx(20000)
+    assert result["taxable_capital_gains"] == pytest.approx(30000)
+    assert result["capital_gains_tax"] == pytest.approx(3000)
+
+
+@pytest.mark.anyio
 async def test_import_accounts_csv_success(client: AsyncClient):
     suffix = uuid4().hex[:8]
     csv_payload = (

@@ -181,12 +181,12 @@ function calculateBelgium(input: TaxInputs): TaxCalculationResult {
   const capitalGainsTax = taxableCapitalGains * 0.1;
   const dividendTax = base.shareDividends * 0.3;
   const bondTax = base.bondRevenue * 0.3;
-  
+  let wealthTax = input.portfolioValue * input.belgiumWealthTaxRate;
+
   // Account tax: 0.15% on portfolio value per person only when > €1M per person
-  let wealthTax = 0;
   const perPersonPortfolio = input.portfolioValue / input.numPersons;
   if (perPersonPortfolio > 1000000) {
-    wealthTax = (perPersonPortfolio * 0.0015) * input.numPersons;
+    wealthTax += (perPersonPortfolio * 0.0015) * input.numPersons;
   }
 
   return finalizeResult(input, base, {
